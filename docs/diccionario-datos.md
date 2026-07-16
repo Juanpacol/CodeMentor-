@@ -45,3 +45,7 @@ El motor de calificación por tipo de ejercicio (`modules/grading`) es puro Pyth
 | `practice_submissions` | Práctica libre (RF-09): una fila por envío, sin envoltorio de intento ni límite — retroalimentación inmediata (RF-13). |
 
 La tabla de posiciones (RF-11, RE-02) no tiene tabla propia: se cachea en Redis como un *sorted set* (`ranking:{evaluation_id}`), actualizado en cada envío final.
+
+## Fase 4 (migración `004`)
+
+No se agregan tablas nuevas. La migración `004` amplía el enum `exercise_type` con el valor `live_code` (`ALTER TYPE ... ADD VALUE`, imposible de revertir en Postgres — el `downgrade()` es intencionalmente un no-op documentado). El sandbox en sí (`modules/sandbox`) no persiste nada: es un cliente HTTP hacia Piston (self-hosted, perfil `sandbox` de Docker Compose) y un intérprete propio de PSeInt (gramática Lark) que corre en memoria dentro del proceso de la API, acotado por un límite de pasos (`max_steps`) para evitar ciclos infinitos — ver `docs/adr/002-sandbox-fuera-del-registro-sincrono.md`.

@@ -37,14 +37,16 @@ from logica.modules.evaluations.repository import (
     list_evaluation_exercises,
     list_pending_manual_review,
 )
-from logica.modules.exercises.models import Exercise, ExerciseStatus
+from logica.modules.exercises.models import Exercise, ExerciseStatus, ExerciseType
 from logica.modules.exercises.repository import (
     get_exercise,
     list_exercises,
     list_topic_ids_for_exercise,
 )
+from logica.modules.grading.live_code import grade_live_code
 from logica.modules.grading.registry import grade_exercise
 from logica.modules.grading.sanitize import strip_answer_key
+from logica.modules.grading.types import GradeResult
 from logica.modules.groups.repository import get_membership
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.users.models import Role, User
@@ -58,6 +60,14 @@ _LATE_TOLERANCE = timedelta(seconds=30)
 def _ensure_teacher(user: User) -> None:
     if user.role not in (Role.teacher, Role.admin):
         raise PermissionDeniedError("Solo un docente o administrador puede gestionar evaluaciones")
+
+
+async def _grade(exercise: Exercise, answer: dict[str, Any]) -> GradeResult:
+    """Dispatches to the sync RF-10 registry, except `live_code` (§4.2) which
+    needs a sandbox round trip — see grading/live_code.py."""
+    if exercise.type == ExerciseType.live_code:
+        return await grade_live_code(exercise.content, answer)
+    return grade_exercise(exercise.type, exercise.content, answer)
 
 
 async def _eligible_topic_ids(
@@ -224,7 +234,7 @@ async def submit_answer(
 
     exercise = await get_exercise(db, eval_exercise.exercise_id)
     assert exercise is not None
-    result = grade_exercise(exercise.type, exercise.content, answer)
+    result = await _grade(exercise, answer)
 
     existing = await get_answer(db, attempt.id, evaluation_exercise_id)
     if existing is None:
@@ -411,7 +421,7 @@ async def submit_practice(
     if not any(tid in enabled_topic_ids for tid in topic_ids):
         raise PermissionDeniedError("Este ejercicio no está habilitado para tu grupo")
 
-    result = grade_exercise(exercise.type, exercise.content, answer)
+    result = await _grade(exercise, answer)
     submission = PracticeSubmission(
         institution_id=student.institution_id,
         student_id=student.id,

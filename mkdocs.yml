@@ -21,6 +21,7 @@ nav:
   - Guía de despliegue: despliegue.md
   - ADRs:
       - ADR-001 Monolito modular: adr/001-monolito-modular.md
+      - ADR-002 Sandbox fuera del registro síncrono: adr/002-sandbox-fuera-del-registro-sincrono.md
 
 markdown_extensions:
   - admonition

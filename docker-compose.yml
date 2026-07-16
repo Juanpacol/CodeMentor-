@@ -72,6 +72,11 @@ services:
     image: ghcr.io/engineer-man/piston:latest
     profiles: ["sandbox"]
     privileged: true
+    environment:
+      # Defaults cap run_timeout at 3000ms — too tight for a "código en
+      # vivo" retry loop with several test cases per exercise.
+      PISTON_RUN_TIMEOUT: 10000
+      PISTON_COMPILE_TIMEOUT: 15000
     ports:
       - "${PISTON_HOST_PORT:-2000}:2000"
     volumes:

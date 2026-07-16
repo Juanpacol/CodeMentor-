@@ -15,6 +15,7 @@ from logica.modules.content.router import router as content_router
 from logica.modules.evaluations.router import router as evaluations_router
 from logica.modules.exercises.router import router as exercises_router
 from logica.modules.groups.router import router as groups_router
+from logica.modules.sandbox.router import router as sandbox_router
 from logica.modules.users.router import auth_router, users_router
 
 logger = structlog.get_logger()
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(content_router)
     app.include_router(exercises_router)
     app.include_router(evaluations_router)
+    app.include_router(sandbox_router)
 
     return app
 

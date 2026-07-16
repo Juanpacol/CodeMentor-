@@ -20,6 +20,22 @@ make up-ai        # + Ollama (fallback local) + Langfuse (observabilidad)
 make up-sandbox   # + Piston (ejecución aislada de código)
 ```
 
+### Sandbox de ejecución de código (Piston)
+
+Piston self-hosted arranca sin lenguajes instalados. Tras `make up-sandbox`, instalar el runtime necesario (Python es el único requerido para RF-09..13 hoy; C/C++/Java/PHP se agregan igual cuando se necesiten, RE-06):
+
+```bash
+make sandbox-install-python
+```
+
+Los ejercicios de tipo `live_code` (§4.2, "reto de código en vivo") se prueban contra un Piston real:
+
+```bash
+make test-sandbox   # requiere up-sandbox + sandbox-install-python
+```
+
+Estas pruebas están marcadas `@pytest.mark.sandbox` y quedan excluidas de `make test`/CI por defecto, ya que dependen de infraestructura que CI no levanta. El intérprete propio de PSeInt (validación de sintaxis y trazado de variables, RF-26) no depende de Piston — corre embebido en la API y sus pruebas sí forman parte de `make test`.
+
 ## Producción (tiers gratuitos)
 
 Definido en detalle en la Fase 10 del plan de implementación. Resumen:

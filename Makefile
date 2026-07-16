@@ -1,4 +1,4 @@
-.PHONY: help up up-ai up-sandbox down logs api-shell lint fmt typecheck test evals migrate migrate-test migration seed
+.PHONY: help up up-ai up-sandbox down logs api-shell lint fmt typecheck test test-sandbox evals migrate migrate-test migration seed sandbox-install-python
 
 API_DIR := apps/api
 
@@ -19,6 +19,8 @@ HOST_DATABASE_URL := postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@
 HOST_TEST_DATABASE_URL := postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:$(POSTGRES_HOST_PORT)/logica_test
 HOST_REDIS_URL := redis://localhost:$(REDIS_HOST_PORT)/0
 HOST_TEST_REDIS_URL := redis://localhost:$(REDIS_HOST_PORT)/1
+PISTON_HOST_PORT ?= 2000
+HOST_SANDBOX_URL := http://localhost:$(PISTON_HOST_PORT)
 
 help:
 	@echo "make up            - levantar api+worker+postgres+redis"
@@ -30,6 +32,8 @@ help:
 	@echo "make fmt           - ruff format (aplica cambios)"
 	@echo "make typecheck     - mypy strict"
 	@echo "make test          - pytest contra logica_test (unit+integration)"
+	@echo "make test-sandbox  - pytest incluyendo pruebas reales contra Piston (requiere up-sandbox)"
+	@echo "make sandbox-install-python - instala el runtime de Python en Piston"
 	@echo "make evals         - suite de evaluaciones de IA (modo mock por defecto)"
 	@echo "make migrate       - aplicar migraciones alembic (DB de desarrollo)"
 	@echo "make migrate-test  - aplicar migraciones alembic (DB de test)"
@@ -67,6 +71,16 @@ test:
 	cd $(API_DIR) && \
 	DATABASE_URL="$(HOST_TEST_DATABASE_URL)" REDIS_URL="$(HOST_TEST_REDIS_URL)" \
 	uv run pytest -m "not sandbox and not live" --cov=logica --cov-report=term-missing
+
+test-sandbox:
+	cd $(API_DIR) && \
+	DATABASE_URL="$(HOST_TEST_DATABASE_URL)" REDIS_URL="$(HOST_TEST_REDIS_URL)" SANDBOX_URL="$(HOST_SANDBOX_URL)" \
+	uv run pytest -m "sandbox"
+
+sandbox-install-python:
+	curl -s -X POST http://localhost:$${PISTON_HOST_PORT:-2000}/api/v2/packages \
+		-H "Content-Type: application/json" \
+		-d '{"language": "python", "version": "3.10.0"}'
 
 evals:
 	cd $(API_DIR) && uv run pytest tests/evals -m "not live"

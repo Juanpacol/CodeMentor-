@@ -11,9 +11,9 @@ from logica.db import Base
 
 
 class ExerciseType(enum.StrEnum):
-    """The seven exercise types from RF-10. Fase 3 adds the grading plugin
-    (ExerciseTypeRegistry) that interprets `content` per type — this phase
-    only establishes the reusable bank entity (RF-08)."""
+    """The seven exercise types from RF-10, plus `live_code` (§4.2 "reto de
+    código en vivo") added in Fase 4 — RE-05 is explicitly designed so a new
+    type is one class + one registry entry, and this is that showcase."""
 
     true_false = "true_false"
     multiple_choice = "multiple_choice"
@@ -22,6 +22,7 @@ class ExerciseType(enum.StrEnum):
     trace_variables = "trace_variables"
     order_lines = "order_lines"
     argued_response = "argued_response"
+    live_code = "live_code"
 
 
 class ExerciseOrigin(enum.StrEnum):
