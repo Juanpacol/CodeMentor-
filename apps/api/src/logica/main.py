@@ -11,6 +11,8 @@ from sqlalchemy import text
 from logica.config import get_settings
 from logica.core.errors import LogicaError
 from logica.db import get_engine
+from logica.modules.content.router import router as content_router
+from logica.modules.exercises.router import router as exercises_router
 from logica.modules.groups.router import router as groups_router
 from logica.modules.users.router import auth_router, users_router
 
@@ -72,6 +74,8 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(groups_router)
+    app.include_router(content_router)
+    app.include_router(exercises_router)
 
     return app
 

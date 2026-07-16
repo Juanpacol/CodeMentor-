@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,6 +22,9 @@ class Group(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
     grade_or_shift: Mapped[str | None] = mapped_column(String(100), nullable=True)
     invite_code: Mapped[str] = mapped_column(String(16), nullable=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # RF-22: locked topics show as "próximamente" by default; a teacher can
+    # opt into hiding them from students entirely for this group.
+    hide_locked_topics: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class GroupMembership(UUIDPkMixin, TimestampMixin, Base):

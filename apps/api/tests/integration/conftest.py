@@ -10,6 +10,11 @@ from logica.modules.users.models import Institution
 
 _TABLES = (
     "audit_logs",
+    "topic_group_states",
+    "topic_exercises",
+    "exercises",
+    "topics",
+    "languages",
     "group_memberships",
     "groups",
     "password_reset_tokens",
@@ -71,3 +76,37 @@ async def register_and_login(
     assert resp.status_code == 200, resp.text
     tokens = resp.json()
     return tokens["access_token"], tokens["refresh_token"]
+
+
+async def create_language(client: AsyncClient, teacher_access: str, slug: str = "python") -> str:
+    resp = await client.post(
+        "/languages",
+        json={"name": "Python", "slug": slug, "syntax_mode": "python"},
+        headers=auth_headers(teacher_access),
+    )
+    assert resp.status_code == 201, resp.text
+    language_id: str = resp.json()["id"]
+    return language_id
+
+
+async def create_topic(
+    client: AsyncClient,
+    teacher_access: str,
+    language_id: str,
+    name: str = "Estructuras condicionales",
+    level: str = "basico",
+    order_index: int = 1,
+) -> str:
+    resp = await client.post(
+        "/topics",
+        json={
+            "language_id": language_id,
+            "name": name,
+            "level": level,
+            "order_index": order_index,
+        },
+        headers=auth_headers(teacher_access),
+    )
+    assert resp.status_code == 201, resp.text
+    topic_id: str = resp.json()["id"]
+    return topic_id

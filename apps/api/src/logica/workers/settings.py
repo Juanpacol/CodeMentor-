@@ -1,8 +1,14 @@
 from typing import Any
 
+import structlog
 from arq.connections import RedisSettings
+from arq.cron import cron
 
 from logica.config import get_settings
+from logica.db import get_session_factory
+from logica.modules.content.service import enable_scheduled_topics
+
+logger = structlog.get_logger()
 
 
 async def ping(ctx: dict[str, Any]) -> str:
@@ -12,9 +18,26 @@ async def ping(ctx: dict[str, Any]) -> str:
     return "pong"
 
 
+async def enable_scheduled_topics_job(ctx: dict[str, Any]) -> int:
+    """Flips topics whose `scheduled_enable_at` is due (RF-24). The platform
+    never advances content on its own — this only executes a date a teacher
+    explicitly chose in advance."""
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        count = await enable_scheduled_topics(db)
+        await db.commit()
+    if count:
+        logger.info("scheduled_topics_enabled", count=count)
+    return count
+
+
 # Task functions are registered here incrementally as each phase introduces
-# background jobs (scheduled topic enablement, reports, rankings, RAG ingestion...).
+# background jobs (reportes, rankings, ingesta RAG...).
 functions: list[object] = [ping]
+
+# Runs every 5 minutes — frequent enough that a scheduled topic doesn't lag
+# far behind class time, cheap enough to not matter at this scale.
+cron_jobs = [cron(enable_scheduled_topics_job, minute=set(range(0, 60, 5)))]
 
 
 async def startup(ctx: dict[str, Any]) -> None:
@@ -27,6 +50,7 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 class WorkerSettings:
     functions = functions
+    cron_jobs = cron_jobs
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
