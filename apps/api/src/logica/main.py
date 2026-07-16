@@ -11,6 +11,8 @@ from sqlalchemy import text
 from logica.config import get_settings
 from logica.core.errors import LogicaError
 from logica.db import get_engine
+from logica.modules.groups.router import router as groups_router
+from logica.modules.users.router import auth_router, users_router
 
 logger = structlog.get_logger()
 
@@ -66,6 +68,10 @@ def create_app() -> FastAPI:
     async def health_redis(request: Request) -> dict[str, str]:
         await request.app.state.redis.ping()
         return {"status": "ok"}
+
+    app.include_router(auth_router)
+    app.include_router(users_router)
+    app.include_router(groups_router)
 
     return app
 

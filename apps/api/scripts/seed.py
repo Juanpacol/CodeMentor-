@@ -5,14 +5,98 @@ de dominio (Fase 1: institución/usuarios/grupos; Fase 2: temas/lenguajes; ...).
 import asyncio
 
 import structlog
+from sqlalchemy import select
+
+from logica.core.security import hash_password
+from logica.db import get_session_factory
+from logica.modules.groups.models import Group, GroupMembership
+from logica.modules.users.models import Institution, Role, User
 
 logger = structlog.get_logger()
+
+DEMO_DOMAIN = "inem.edu.co"
+DEMO_PASSWORD = "Logica2026!"
 
 
 async def seed() -> None:
     logger.info("seed_start")
-    # TODO(Fase 1+): crear institución demo, docente, estudiantes, grupo piloto.
-    logger.info("seed_done")
+    session_factory = get_session_factory()
+
+    async with session_factory() as db:
+        result = await db.execute(
+            select(Institution).where(Institution.email_domains.any(DEMO_DOMAIN))  # type: ignore[arg-type]
+        )
+        institution = result.scalar_one_or_none()
+        if institution is None:
+            institution = Institution(
+                name="INEM José Félix de Restrepo",
+                email_domains=[DEMO_DOMAIN],
+            )
+            db.add(institution)
+            await db.flush()
+            logger.info("institution_created", id=str(institution.id))
+
+        async def get_or_create_user(
+            email: str, full_name: str, role: Role, student_code: str | None = None
+        ) -> User:
+            result = await db.execute(
+                select(User).where(User.institution_id == institution.id, User.email == email)
+            )
+            user = result.scalar_one_or_none()
+            if user is None:
+                user = User(
+                    institution_id=institution.id,
+                    email=email,
+                    full_name=full_name,
+                    student_code=student_code,
+                    hashed_password=hash_password(DEMO_PASSWORD),
+                    role=role,
+                )
+                db.add(user)
+                await db.flush()
+                logger.info("user_created", email=email, role=role.value)
+            return user
+
+        teacher = await get_or_create_user(
+            f"docente.logica@{DEMO_DOMAIN}", "Docente de Lógica", Role.teacher
+        )
+        student_a = await get_or_create_user(
+            f"estudiante.uno@{DEMO_DOMAIN}", "Estudiante Uno", Role.student, student_code="E001"
+        )
+        student_b = await get_or_create_user(
+            f"estudiante.dos@{DEMO_DOMAIN}", "Estudiante Dos", Role.student, student_code="E002"
+        )
+
+        result = await db.execute(
+            select(Group).where(
+                Group.institution_id == institution.id, Group.teacher_id == teacher.id
+            )
+        )
+        group = result.scalars().first()
+        if group is None:
+            group = Group(
+                institution_id=institution.id,
+                teacher_id=teacher.id,
+                name="Grupo piloto 10-1",
+                grade_or_shift="10° - Jornada mañana",
+                invite_code="PILOTO1",
+            )
+            db.add(group)
+            await db.flush()
+            logger.info("group_created", id=str(group.id))
+
+        for student in (student_a, student_b):
+            result = await db.execute(
+                select(GroupMembership).where(
+                    GroupMembership.group_id == group.id, GroupMembership.student_id == student.id
+                )
+            )
+            if result.scalar_one_or_none() is None:
+                db.add(GroupMembership(group_id=group.id, student_id=student.id))
+
+        await db.commit()
+
+    logger.info("seed_done", demo_password=DEMO_PASSWORD)
 
 
 def main() -> None:

@@ -7,7 +7,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
-    "pydantic>=2.9",
+    "pydantic[email]>=2.9",
     "pydantic-settings>=2.6",
     "sqlalchemy[asyncio]>=2.0.36",
     "alembic>=1.14",
@@ -55,10 +55,13 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "S"]
-ignore = ["S101"]
+# S101: asserts are fine in this codebase (tests + defensive checks).
+# B008: FastAPI's `Depends(...)` idiom relies on call-in-default-arg by design.
+# S105/S106: false positives on JWT/OAuth literals like token_type="bearer".
+ignore = ["S101", "B008", "S105", "S106"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]
+"tests/**" = ["S101", "S105", "S106", "S107"]
 
 [tool.mypy]
 python_version = "3.12"
