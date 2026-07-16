@@ -35,3 +35,9 @@ async def get_topic_exercise_link(
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def list_topic_ids_for_exercise(db: AsyncSession, exercise_id: uuid.UUID) -> list[uuid.UUID]:
+    stmt = select(TopicExercise.topic_id).where(TopicExercise.exercise_id == exercise_id)
+    result = await db.execute(stmt)
+    return list(result.scalars().all())

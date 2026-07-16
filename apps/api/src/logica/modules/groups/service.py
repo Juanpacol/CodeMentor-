@@ -96,6 +96,26 @@ async def archive_group(db: AsyncSession, teacher: User, group_id: uuid.UUID) ->
     return group
 
 
+async def get_group_with_access(
+    db: AsyncSession, user: User, group_id: uuid.UUID
+) -> tuple[Group, bool]:
+    """Shared by content/evaluations: returns (group, is_teacher_view).
+    Teachers must own the group (or be admin); students must be enrolled."""
+    group = await get_group(db, group_id)
+    if group is None or group.institution_id != user.institution_id:
+        raise NotFoundError("Grupo no encontrado")
+
+    if user.role in (Role.teacher, Role.admin):
+        if user.role != Role.admin and group.teacher_id != user.id:
+            raise PermissionDeniedError("No administras este grupo")
+        return group, True
+
+    membership = await get_membership(db, group_id, user.id)
+    if membership is None:
+        raise PermissionDeniedError("No perteneces a este grupo")
+    return group, False
+
+
 async def list_my_groups(db: AsyncSession, user: User) -> list[Group]:
     if user.role in (Role.teacher, Role.admin):
         return await list_groups_for_teacher(db, user.id)

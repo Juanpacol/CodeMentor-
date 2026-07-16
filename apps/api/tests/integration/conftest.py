@@ -10,6 +10,11 @@ from logica.modules.users.models import Institution
 
 _TABLES = (
     "audit_logs",
+    "evaluation_answers",
+    "evaluation_attempts",
+    "evaluation_exercises",
+    "evaluations",
+    "practice_submissions",
     "topic_group_states",
     "topic_exercises",
     "exercises",
@@ -110,3 +115,58 @@ async def create_topic(
     assert resp.status_code == 201, resp.text
     topic_id: str = resp.json()["id"]
     return topic_id
+
+
+async def create_group(client: AsyncClient, teacher_access: str, name: str = "10-1") -> dict:
+    resp = await client.post("/groups", json={"name": name}, headers=auth_headers(teacher_access))
+    assert resp.status_code == 201, resp.text
+    group: dict = resp.json()
+    return group
+
+
+async def create_exercise(
+    client: AsyncClient,
+    teacher_access: str,
+    language_id: str,
+    exercise_type: str = "true_false",
+    content: dict | None = None,
+    title: str = "Ejercicio",
+) -> dict:
+    resp = await client.post(
+        "/exercises",
+        json={
+            "language_id": language_id,
+            "title": title,
+            "type": exercise_type,
+            "content": content or {"statement": "2+2=4", "answer": True},
+        },
+        headers=auth_headers(teacher_access),
+    )
+    assert resp.status_code == 201, resp.text
+    exercise: dict = resp.json()
+    return exercise
+
+
+async def attach_exercise(
+    client: AsyncClient, teacher_access: str, exercise_id: str, topic_id: str
+) -> None:
+    resp = await client.post(
+        f"/exercises/{exercise_id}/topics/{topic_id}", headers=auth_headers(teacher_access)
+    )
+    assert resp.status_code == 201, resp.text
+
+
+async def enable_topic(
+    client: AsyncClient, teacher_access: str, group_id: str, topic_id: str
+) -> None:
+    resp = await client.post(
+        f"/groups/{group_id}/topics/{topic_id}/enable", headers=auth_headers(teacher_access)
+    )
+    assert resp.status_code == 200, resp.text
+
+
+async def join_group(client: AsyncClient, student_access: str, invite_code: str) -> None:
+    resp = await client.post(
+        "/groups/join", json={"invite_code": invite_code}, headers=auth_headers(student_access)
+    )
+    assert resp.status_code == 201, resp.text

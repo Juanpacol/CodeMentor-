@@ -20,8 +20,7 @@ from logica.modules.content.repository import (
     list_topics,
 )
 from logica.modules.content.schemas import CurriculumTopicOut, TopicOut
-from logica.modules.groups.models import Group
-from logica.modules.groups.repository import get_group, get_membership
+from logica.modules.groups.service import get_group_with_access
 from logica.modules.users.models import Role, User
 
 
@@ -106,29 +105,10 @@ async def update_topic(
     return topic
 
 
-async def _get_group_with_access(
-    db: AsyncSession, user: User, group_id: uuid.UUID
-) -> tuple[Group, bool]:
-    """Returns (group, is_teacher_view). Raises if the user has no access at all."""
-    group = await get_group(db, group_id)
-    if group is None or group.institution_id != user.institution_id:
-        raise NotFoundError("Grupo no encontrado")
-
-    if user.role in (Role.teacher, Role.admin):
-        if user.role != Role.admin and group.teacher_id != user.id:
-            raise PermissionDeniedError("No administras este grupo")
-        return group, True
-
-    membership = await get_membership(db, group_id, user.id)
-    if membership is None:
-        raise PermissionDeniedError("No perteneces a este grupo")
-    return group, False
-
-
 async def enable_topic_for_group(
     db: AsyncSession, user: User, group_id: uuid.UUID, topic_id: uuid.UUID
 ) -> TopicGroupState:
-    group, _ = await _get_group_with_access(db, user, group_id)
+    group, _ = await get_group_with_access(db, user, group_id)
     await _get_topic_in_institution(db, user, topic_id)
 
     state = await get_topic_group_state(db, topic_id, group_id)
@@ -147,7 +127,7 @@ async def enable_topic_for_group(
 async def disable_topic_for_group(
     db: AsyncSession, user: User, group_id: uuid.UUID, topic_id: uuid.UUID
 ) -> TopicGroupState:
-    await _get_group_with_access(db, user, group_id)
+    await get_group_with_access(db, user, group_id)
     await _get_topic_in_institution(db, user, topic_id)
 
     state = await get_topic_group_state(db, topic_id, group_id)
@@ -166,7 +146,7 @@ async def disable_topic_for_group(
 async def schedule_topic_for_group(
     db: AsyncSession, user: User, group_id: uuid.UUID, topic_id: uuid.UUID, enable_at: datetime
 ) -> TopicGroupState:
-    await _get_group_with_access(db, user, group_id)
+    await get_group_with_access(db, user, group_id)
     await _get_topic_in_institution(db, user, topic_id)
 
     state = await get_topic_group_state(db, topic_id, group_id)
@@ -184,7 +164,7 @@ async def schedule_topic_for_group(
 async def get_curriculum_for_group(
     db: AsyncSession, user: User, group_id: uuid.UUID
 ) -> list[CurriculumTopicOut]:
-    group, is_teacher_view = await _get_group_with_access(db, user, group_id)
+    group, is_teacher_view = await get_group_with_access(db, user, group_id)
 
     topics = await list_topics(db, user.institution_id)
     states_by_topic = {s.topic_id: s for s in await list_topic_group_states_for_group(db, group_id)}

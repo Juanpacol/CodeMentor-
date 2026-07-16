@@ -12,11 +12,18 @@ from logica.config import get_settings
 from logica.core.audit import AuditLog  # noqa: F401
 from logica.db import Base
 from logica.modules.content.models import Language, Topic, TopicGroupState  # noqa: F401
+from logica.modules.evaluations.models import (  # noqa: F401
+    Evaluation,
+    EvaluationAnswer,
+    EvaluationAttempt,
+    EvaluationExercise,
+    PracticeSubmission,
+)
 from logica.modules.exercises.models import Exercise, TopicExercise  # noqa: F401
 from logica.modules.groups.models import Group, GroupMembership  # noqa: F401
 from logica.modules.users.models import Institution, PasswordResetToken, User  # noqa: F401
 
-# (populated incrementally as each domain module is implemented — see Fase 3+)
+# (populated incrementally as each domain module is implemented — see Fase 4+)
 
 config = context.config
 

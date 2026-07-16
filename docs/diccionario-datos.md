@@ -31,3 +31,17 @@ Todas las tablas de dominio (excepto `institutions`, que es la raíz del tenant)
 | `exercises` | Banco reutilizable entre temas y periodos (RF-08). `type` son los 7 tipos de RF-10 (la lógica de calificación por tipo llega en la Fase 3); `content` es un JSON específico por tipo; `origin` (`teacher`/`ai`) y `status` (`draft`/`published`) existen desde ya para que el generador de ejercicios por IA de la Fase 6 (RF-32) tenga dónde aterrizar sin otra migración. |
 | `topic_exercises` | Relación muchos-a-muchos entre `topics` y `exercises`: el mismo ejercicio puede reutilizarse en varios temas. |
 | `groups.hide_locked_topics` (columna añadida) | Preferencia por grupo: si los temas bloqueados se muestran como "próximamente" (por defecto) o se ocultan del todo para el estudiante (RF-22). |
+
+## Fase 3 (migración `003`)
+
+El motor de calificación por tipo de ejercicio (`modules/grading`) es puro Python (sin tablas propias): un registro de 7 plugins (RF-10, RE-05) que reciben `content` + `answer` y devuelven un `GradeResult` normalizado. Las tablas siguientes son las que persisten evaluaciones e intentos.
+
+| Tabla | Descripción |
+|---|---|
+| `evaluations` | Una evaluación de un docente para un grupo. `mode` (`fixed`/`cumulative`) + `up_to_topic_id` implementan el alcance de RF-20/21 — validado server-side al crear, nunca confiado del cliente. `duration_minutes` es el cronómetro (RF-11); `is_ranked` activa la tabla de posiciones. |
+| `evaluation_exercises` | Ejercicios seleccionados para una evaluación, con `order_index`, `points` (ponderación) y `exercise_version_at_attach` (trazabilidad RE-07). |
+| `evaluation_attempts` | Un intento por `(evaluation_id, student_id)` — a diferencia de la práctica libre (RF-09, sin límite), una evaluación tiene un único intento. `status` (`in_progress`/`submitted`/`expired`) y `total_score` se fijan al finalizar y ya no cambian por ediciones posteriores del contenido (RE-07: la calificación se computa una vez y se persiste). |
+| `evaluation_answers` | Una respuesta por `(attempt_id, evaluation_exercise_id)` — se puede sobrescribir mientras el intento sigue `in_progress` (autoguardado, §8.2), pero no después de finalizado. `needs_manual_review`/`manual_score`/`reviewed_by_id` sostienen la cola de revisión manual de RF-12. |
+| `practice_submissions` | Práctica libre (RF-09): una fila por envío, sin envoltorio de intento ni límite — retroalimentación inmediata (RF-13). |
+
+La tabla de posiciones (RF-11, RE-02) no tiene tabla propia: se cachea en Redis como un *sorted set* (`ranking:{evaluation_id}`), actualizado en cada envío final.
