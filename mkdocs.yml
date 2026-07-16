@@ -1,0 +1,33 @@
+site_name: Lógica>_ — Documentación técnica
+site_description: Plataforma de lógica de programación (PSeInt y Python) — INEM José Félix de Restrepo
+repo_url: https://github.com/Juanpacol/CodeMentor-
+docs_dir: docs
+
+theme:
+  name: material
+  language: es
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: teal
+  features:
+    - navigation.sections
+    - content.code.copy
+
+nav:
+  - Inicio: index.md
+  - Arquitectura: arquitectura.md
+  - Diccionario de datos: diccionario-datos.md
+  - Guía de despliegue: despliegue.md
+  - ADRs:
+      - ADR-001 Monolito modular: adr/001-monolito-modular.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight
+  - tables

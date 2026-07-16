@@ -1,0 +1,86 @@
+[project]
+name = "logica-api"
+version = "0.1.0"
+description = "API de Lógica>_ — plataforma de lógica de programación (PSeInt y Python)"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "alembic>=1.14",
+    "asyncpg>=0.30",
+    "pgvector>=0.3.6",
+    "redis>=5.2",
+    "arq>=0.26",
+    "pyjwt>=2.10",
+    "argon2-cffi>=23.1",
+    "python-multipart>=0.0.17",
+    "httpx>=0.27",
+    "litellm>=1.52",
+    "pydantic-ai-slim[openai,groq,google]>=0.0.13",
+    "sentence-transformers>=3.3",
+    "lark>=1.2",
+    "jinja2>=3.1",
+    "openpyxl>=3.1",
+    "weasyprint>=63",
+    "mcp>=1.1",
+    "structlog>=24.4",
+    "tenacity>=9.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "hypothesis>=6.122",
+    "factory-boy>=3.3",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+    "locust>=2.32",
+    "aiosqlite>=0.20",
+]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["alembic/"]
+
+[[tool.mypy.overrides]]
+module = ["litellm.*", "arq.*", "weasyprint.*", "lark.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "sandbox: requires the Piston sandbox container",
+    "live: hits a real external LLM provider (costs tokens/quota)",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/logica"]

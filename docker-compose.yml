@@ -1,0 +1,110 @@
+name: logica
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-logica}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-logica}
+      POSTGRES_DB: ${POSTGRES_DB:-logica}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init-multi-db.sh:/docker-entrypoint-initdb.d/init-multi-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-logica}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_HOST_PORT:-6381}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-logica}:${POSTGRES_PASSWORD:-logica}@postgres:5432/${POSTGRES_DB:-logica}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    volumes:
+      - ./apps/api:/app
+      - api_venv:/app/.venv
+    command: uvicorn logica.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.worker
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-logica}:${POSTGRES_PASSWORD:-logica}@postgres:5432/${POSTGRES_DB:-logica}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./apps/api:/app
+      - worker_venv:/app/.venv
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # --- Perfil "sandbox": ejecución aislada de código (Fase 4) ---
+  piston:
+    image: ghcr.io/engineer-man/piston:latest
+    profiles: ["sandbox"]
+    privileged: true
+    ports:
+      - "${PISTON_HOST_PORT:-2000}:2000"
+    volumes:
+      - piston_data:/piston/packages
+
+  # --- Perfil "ai": modelo local de respaldo + observabilidad LLM (Fases 5-7) ---
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
+    ports:
+      - "${OLLAMA_HOST_PORT:-11450}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  langfuse:
+    image: langfuse/langfuse:2
+    profiles: ["ai"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-logica}:${POSTGRES_PASSWORD:-logica}@postgres:5432/langfuse
+      NEXTAUTH_SECRET: ${JWT_SECRET:-change-me-in-env}
+      NEXTAUTH_URL: http://localhost:3000
+      SALT: ${JWT_SECRET:-change-me-in-env}
+      TELEMETRY_ENABLED: "false"
+    ports:
+      - "${LANGFUSE_HOST_PORT:-3010}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
+  piston_data:
+  ollama_data:
+  api_venv:
+  worker_venv:

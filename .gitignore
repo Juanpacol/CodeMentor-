@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.uv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+dist/
+build/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+apps/web/dist/
+apps/web/.vite/
+
+# Docker volumes / data
+pgdata/
+redisdata/
+piston_data/
+langfuse_data/
+
+# Docs build
+site/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local tooling state (Claude Code)
+.claude/
+
+# Local model caches
+.ollama/
+models_cache/
