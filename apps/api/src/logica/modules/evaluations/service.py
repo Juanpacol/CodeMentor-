@@ -36,6 +36,7 @@ from logica.modules.evaluations.repository import (
     list_answers_for_attempt,
     list_answers_for_evaluation,
     list_evaluation_exercises,
+    list_evaluations_for_group,
     list_pending_manual_review,
 )
 from logica.modules.exercises.models import Exercise, ExerciseStatus, ExerciseType
@@ -160,6 +161,16 @@ async def create_evaluation(
     await db.flush()
     await db.refresh(evaluation)
     return evaluation
+
+
+async def list_group_evaluations(
+    db: AsyncSession, user: User, group_id: uuid.UUID
+) -> list[Evaluation]:
+    """Any member of the group — teacher managing them or student deciding
+    which one to take — can list a group's evaluations (§8.1: a student has
+    no other way to discover an evaluation exists without a shared link)."""
+    await get_group_with_access(db, user, group_id)
+    return await list_evaluations_for_group(db, group_id)
 
 
 async def _get_evaluation_in_institution(

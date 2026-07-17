@@ -54,6 +54,16 @@ async def create_evaluation(
     return EvaluationOut.model_validate(evaluation)
 
 
+@router.get("/groups/{group_id}/evaluations", response_model=list[EvaluationOut])
+async def list_group_evaluations(
+    group_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[EvaluationOut]:
+    evaluations = await service.list_group_evaluations(db, user, group_id)
+    return [EvaluationOut.model_validate(e) for e in evaluations]
+
+
 @router.get("/evaluations/{evaluation_id}/take", response_model=TakeEvaluationOut)
 async def take_evaluation(
     evaluation_id: uuid.UUID,

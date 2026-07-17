@@ -16,6 +16,16 @@ async def get_evaluation(db: AsyncSession, evaluation_id: uuid.UUID) -> Evaluati
     return await db.get(Evaluation, evaluation_id)
 
 
+async def list_evaluations_for_group(db: AsyncSession, group_id: uuid.UUID) -> list[Evaluation]:
+    stmt = (
+        select(Evaluation)
+        .where(Evaluation.group_id == group_id)
+        .order_by(Evaluation.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def list_evaluation_exercises(
     db: AsyncSession, evaluation_id: uuid.UUID
 ) -> list[EvaluationExercise]:

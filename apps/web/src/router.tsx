@@ -8,12 +8,15 @@ import { RegisterPage } from './features/auth/RegisterPage'
 import { ResetConfirmPage } from './features/auth/ResetConfirmPage'
 import { ResetRequestPage } from './features/auth/ResetRequestPage'
 import { LandingPage } from './features/landing/LandingPage'
+import { EvaluationResultPage } from './features/student/EvaluationResultPage'
 import { GroupDetailPage } from './features/student/GroupDetailPage'
 import { PracticePage } from './features/student/PracticePage'
 import { ProgressPage } from './features/student/ProgressPage'
 import { StudentDashboardPage } from './features/student/StudentDashboardPage'
+import { TakeEvaluationPage } from './features/student/TakeEvaluationPage'
 import { ApprovalsInboxPage } from './features/teacher/ApprovalsInboxPage'
 import { EvaluationBuilderPage } from './features/teacher/EvaluationBuilderPage'
+import { EvaluationManagePage } from './features/teacher/EvaluationManagePage'
 import { ExerciseBankPage } from './features/teacher/ExerciseBankPage'
 import { TeacherDashboardPage } from './features/teacher/TeacherDashboardPage'
 
@@ -35,6 +38,11 @@ export const router = createBrowserRouter([
               { path: '/app', element: <StudentDashboardPage /> },
               { path: '/app/grupos/:groupId', element: <GroupDetailPage /> },
               { path: '/app/grupos/:groupId/practicar', element: <PracticePage /> },
+              { path: '/app/evaluaciones/:evaluationId', element: <TakeEvaluationPage /> },
+              {
+                path: '/app/evaluaciones/:evaluationId/resultado',
+                element: <EvaluationResultPage />,
+              },
               { path: '/app/progreso', element: <ProgressPage /> },
             ],
           },
@@ -44,6 +52,10 @@ export const router = createBrowserRouter([
               { path: '/app/docente', element: <TeacherDashboardPage /> },
               { path: '/app/docente/ejercicios', element: <ExerciseBankPage /> },
               { path: '/app/docente/evaluaciones/nueva', element: <EvaluationBuilderPage /> },
+              {
+                path: '/app/docente/evaluaciones/:evaluationId',
+                element: <EvaluationManagePage />,
+              },
               { path: '/app/docente/bandeja', element: <ApprovalsInboxPage /> },
               { path: '/app/admin/periodos', element: <AcademicPeriodsPage /> },
             ],

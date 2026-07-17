@@ -51,6 +51,43 @@ async def _setup_single_exercise_evaluation(
     return group["id"], created.json()["id"]
 
 
+async def test_list_group_evaluations_visible_to_teacher_and_student(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
+
+    group_id, evaluation_id = await _setup_single_exercise_evaluation(client, teacher_access)
+    group = (await client.get("/groups/mine", headers=auth_headers(teacher_access))).json()[0]
+    await join_group(client, student_access, group["invite_code"])
+
+    for access in (teacher_access, student_access):
+        resp = await client.get(f"/groups/{group_id}/evaluations", headers=auth_headers(access))
+        assert resp.status_code == 200, resp.text
+        evaluations = resp.json()
+        assert len(evaluations) == 1
+        assert evaluations[0]["id"] == evaluation_id
+        assert evaluations[0]["title"] == "Quiz"
+
+
+async def test_list_group_evaluations_forbidden_for_non_member(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    outsider_access, _ = await register_and_login(
+        client, email=f"outsider@{domain}", role="student"
+    )
+
+    group_id, _ = await _setup_single_exercise_evaluation(client, teacher_access)
+
+    resp = await client.get(
+        f"/groups/{group_id}/evaluations", headers=auth_headers(outsider_access)
+    )
+    assert resp.status_code == 403
+
+
 async def test_take_evaluation_hides_answer_key(
     client: AsyncClient, institution: Institution
 ) -> None:

@@ -6,6 +6,7 @@ export const qk = {
     mine: ['groups', 'mine'] as const,
   },
   curriculum: (groupId: string) => ['curriculum', groupId] as const,
+  groupEvaluations: (groupId: string) => ['group-evaluations', groupId] as const,
   languages: ['languages'] as const,
   topics: (languageId?: string) => ['topics', languageId ?? 'all'] as const,
   practice: (groupId: string) => ['practice', groupId] as const,

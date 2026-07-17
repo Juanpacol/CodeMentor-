@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Badge } from '../../components/ui/Badge'
+import { Card } from '../../components/ui/Card'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { apiClient, unwrap } from '../../lib/api/client'
@@ -27,6 +28,15 @@ export function GroupDetailPage() {
   const { data: curriculum, isLoading } = useQuery({
     queryKey: qk.curriculum(groupId!),
     queryFn: () => unwrap(apiClient.GET('/groups/{group_id}/curriculum', { params: { path: { group_id: groupId! } } })),
+    enabled: Boolean(groupId),
+  })
+
+  const { data: evaluations } = useQuery({
+    queryKey: qk.groupEvaluations(groupId!),
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/groups/{group_id}/evaluations', { params: { path: { group_id: groupId! } } }),
+      ),
     enabled: Boolean(groupId),
   })
 
@@ -85,6 +95,24 @@ export function GroupDetailPage() {
             )
           })}
         </motion.ol>
+      )}
+
+      {evaluations && evaluations.length > 0 && (
+        <div className="mt-10">
+          <h2 className="mb-3 text-lg font-semibold text-ink">Evaluaciones</h2>
+          <div className="flex flex-col gap-2">
+            {evaluations.map((evaluation) => (
+              <Link key={evaluation.id} to={`/app/evaluaciones/${evaluation.id}`}>
+                <Card interactive className="flex items-center justify-between p-4">
+                  <span className="font-medium text-ink">{evaluation.title}</span>
+                  {evaluation.duration_minutes && (
+                    <Badge tint="sky">{evaluation.duration_minutes} min</Badge>
+                  )}
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )
