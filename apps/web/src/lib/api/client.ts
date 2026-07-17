@@ -47,7 +47,15 @@ async function refreshTokens(): Promise<boolean> {
   return refreshPromise
 }
 
-export const apiClient = createClient<paths>({ baseUrl: API_URL })
+// openapi-fetch's `createClient` defaults `fetch` to `globalThis.fetch`
+// evaluated once, at call time — capturing whatever fetch existed at module
+// import. Passing this thin wrapper instead makes every request look up
+// `globalThis.fetch` fresh, which is also what lets tests swap it in with
+// `vi.stubGlobal('fetch', ...)` after this module has already loaded.
+export const apiClient = createClient<paths>({
+  baseUrl: API_URL,
+  fetch: (input) => globalThis.fetch(input),
+})
 
 const RETRY_HEADER = 'x-logica-retried'
 

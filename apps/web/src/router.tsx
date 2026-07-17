@@ -8,6 +8,8 @@ import { RegisterPage } from './features/auth/RegisterPage'
 import { ResetConfirmPage } from './features/auth/ResetConfirmPage'
 import { ResetRequestPage } from './features/auth/ResetRequestPage'
 import { LandingPage } from './features/landing/LandingPage'
+import { GroupDetailPage } from './features/student/GroupDetailPage'
+import { PracticePage } from './features/student/PracticePage'
 import { ProgressPage } from './features/student/ProgressPage'
 import { StudentDashboardPage } from './features/student/StudentDashboardPage'
 import { ApprovalsInboxPage } from './features/teacher/ApprovalsInboxPage'
@@ -31,6 +33,8 @@ export const router = createBrowserRouter([
             element: <RequireRole roles={['student']} />,
             children: [
               { path: '/app', element: <StudentDashboardPage /> },
+              { path: '/app/grupos/:groupId', element: <GroupDetailPage /> },
+              { path: '/app/grupos/:groupId/practicar', element: <PracticePage /> },
               { path: '/app/progreso', element: <ProgressPage /> },
             ],
           },
