@@ -19,6 +19,7 @@ import { EvaluationBuilderPage } from './features/teacher/EvaluationBuilderPage'
 import { EvaluationManagePage } from './features/teacher/EvaluationManagePage'
 import { ExerciseBankPage } from './features/teacher/ExerciseBankPage'
 import { TeacherDashboardPage } from './features/teacher/TeacherDashboardPage'
+import { TeacherGroupDetailPage } from './features/teacher/TeacherGroupDetailPage'
 
 export const router = createBrowserRouter([
   { path: '/', element: <LandingPage /> },
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
             element: <RequireRole roles={['teacher']} />,
             children: [
               { path: '/app/docente', element: <TeacherDashboardPage /> },
+              { path: '/app/docente/grupos/:groupId', element: <TeacherGroupDetailPage /> },
               { path: '/app/docente/ejercicios', element: <ExerciseBankPage /> },
               { path: '/app/docente/evaluaciones/nueva', element: <EvaluationBuilderPage /> },
               {
