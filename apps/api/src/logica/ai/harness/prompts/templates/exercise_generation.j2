@@ -1,0 +1,16 @@
+Genera un ejercicio nuevo de tipo "{{ exercise_type }}" para el tema "{{ topic_name }}" ({{ language }}), nivel {{ level }}.
+
+{% if reference_context %}
+Usa como referencia el siguiente material del curso (no lo copies literalmente, úsalo para mantener el estilo y la terminología del docente):
+{{ reference_context }}
+{% endif %}
+
+{% if similar_exercises %}
+Ejercicios similares ya existentes en el banco, para no repetir el mismo enunciado:
+{{ similar_exercises }}
+{% endif %}
+
+Responde ÚNICAMENTE con un objeto JSON válido con esta forma exacta (sin texto adicional antes o después):
+{{ schema_hint }}
+
+Recuerda: este ejercicio quedará en estado "borrador" y un docente lo revisará antes de publicarlo — prioriza claridad y corrección sobre originalidad.

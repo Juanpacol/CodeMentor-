@@ -3,13 +3,18 @@ from collections.abc import AsyncIterator
 
 import pytest
 from httpx import AsyncClient
+from redis.asyncio import Redis
 from sqlalchemy import text
 
+from logica.config import get_settings
 from logica.db import get_engine, get_session_factory
 from logica.modules.users.models import Institution
 
 _TABLES = (
     "audit_logs",
+    "ai_interactions",
+    "rag_chunks",
+    "rag_documents",
     "evaluation_answers",
     "evaluation_attempts",
     "evaluation_exercises",
@@ -30,13 +35,41 @@ _TABLES = (
 
 @pytest.fixture(autouse=True)
 async def _clean_db() -> AsyncIterator[None]:
-    """Truncates domain tables before every integration test for isolation.
-    Runs against the dedicated test database (DATABASE_URL in CI/make test),
-    never the dev database."""
+    """Truncates domain tables and flushes the dedicated test Redis database
+    before every integration test for isolation. Runs against DATABASE_URL/
+    REDIS_URL as set by `make test` (test DB / Redis db 1), never dev data.
+
+    Disposing the engine on teardown is required, not just tidy: pytest-
+    asyncio hands each test function its own event loop, but `get_engine()`
+    caches a single AsyncEngine at module scope. Tests that go through the
+    `client` fixture get this disposal for free (its ASGI lifespan shutdown
+    calls it), but a test that only touches the DB/Redis directly never
+    triggers that lifespan — without disposing here too, its connections
+    stay bound to a loop that's about to close, and the *next* test's fresh
+    loop then fails with "Event loop is closed" / "attached to a different
+    loop" the moment it tries to reuse the pool."""
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.execute(text(f"TRUNCATE TABLE {', '.join(_TABLES)} RESTART IDENTITY CASCADE"))
+
+    redis = Redis.from_url(get_settings().redis_url, decode_responses=True)
+    try:
+        await redis.flushdb()
+    finally:
+        await redis.aclose()
+
     yield
+
+    await engine.dispose()
+
+
+@pytest.fixture
+async def redis_client() -> AsyncIterator[Redis]:
+    redis = Redis.from_url(get_settings().redis_url, decode_responses=True)
+    try:
+        yield redis
+    finally:
+        await redis.aclose()
 
 
 @pytest.fixture

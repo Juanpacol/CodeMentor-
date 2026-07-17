@@ -1,0 +1,8 @@
+Convierte este resultado técnico en una explicación pedagógica en español para un estudiante de secundaria.
+
+Ejercicio: {{ statement }}
+Resultado: {{ "Correcto" if correct else "Incorrecto" }}
+{% if error_line %}Línea con error: {{ error_line }}{% endif %}
+Detalle técnico: {{ detail }}
+
+Escribe una explicación breve (máximo 3 frases), clara y respetuosa, que ayude al estudiante a entender por qué su respuesta fue {{ "correcta" if correct else "incorrecta" }} — no solo repitas el detalle técnico, tradúcelo a lenguaje sencillo.

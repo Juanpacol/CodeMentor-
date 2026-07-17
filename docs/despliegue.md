@@ -36,6 +36,29 @@ make test-sandbox   # requiere up-sandbox + sandbox-install-python
 
 Estas pruebas están marcadas `@pytest.mark.sandbox` y quedan excluidas de `make test`/CI por defecto, ya que dependen de infraestructura que CI no levanta. El intérprete propio de PSeInt (validación de sintaxis y trazado de variables, RF-26) no depende de Piston — corre embebido en la API y sus pruebas sí forman parte de `make test`.
 
+### Harness de IA (Groq / Gemini / Ollama + Langfuse)
+
+El harness (`ai/harness/`, §9.1) enruta cada tarea a una cadena de modelos con respaldo. Para usarlo con proveedores reales, completar en `.env`:
+
+```bash
+GROQ_API_KEY=...      # https://console.groq.com/keys — free tier
+GEMINI_API_KEY=...    # https://aistudio.google.com/apikey — free tier
+```
+
+Ollama (`make up-ai`) sirve como último respaldo local, sin API key. Sin ninguna key configurada, el harness sigue funcionando en pruebas (la función `_completion_fn` se sustituye por un doble en los tests) pero fallará en uso real si los tres proveedores de la cadena no responden — ver `AllProvidersFailedError`.
+
+Langfuse (perfil `ai`, `make up-ai`) traza cada llamada (modelo, tokens, si vino de caché) automáticamente en cuanto `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` estén configurados; sin ellos, el tracing no-opera silenciosamente (nunca rompe una petición). El panel de Langfuse queda disponible en `http://localhost:3010` tras `make up-ai`.
+
+### Ingesta de material para el RAG pedagógico
+
+El Agente Tutor (Fase 6) fundamenta sus pistas en material real del curso, ingerido con:
+
+```bash
+uv run python -m scripts.ingest_rag --institution <uuid-institución> --title "Referencia PSeInt" material.md
+```
+
+Esto trocea el documento, calcula embeddings locales (`intfloat/multilingual-e5-small`, gratis, sin llamada externa) y los guarda en `pgvector`. La recuperación (`ai/rag/retriever.py`) combina similitud vectorial con búsqueda de texto completo en español — ver `docs/adr/003-harness-como-fachada-unica.md`.
+
 ## Producción (tiers gratuitos)
 
 Definido en detalle en la Fase 10 del plan de implementación. Resumen:

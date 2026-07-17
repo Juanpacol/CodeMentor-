@@ -49,3 +49,13 @@ La tabla de posiciones (RF-11, RE-02) no tiene tabla propia: se cachea en Redis 
 ## Fase 4 (migración `004`)
 
 No se agregan tablas nuevas. La migración `004` amplía el enum `exercise_type` con el valor `live_code` (`ALTER TYPE ... ADD VALUE`, imposible de revertir en Postgres — el `downgrade()` es intencionalmente un no-op documentado). El sandbox en sí (`modules/sandbox`) no persiste nada: es un cliente HTTP hacia Piston (self-hosted, perfil `sandbox` de Docker Compose) y un intérprete propio de PSeInt (gramática Lark) que corre en memoria dentro del proceso de la API, acotado por un límite de pasos (`max_steps`) para evitar ciclos infinitos — ver `docs/adr/002-sandbox-fuera-del-registro-sincrono.md`.
+
+## Fase 5 (migración `005`)
+
+| Tabla | Descripción |
+|---|---|
+| `ai_interactions` | Registro de auditoría de cada llamada al harness de IA (RF-34, §9.1): quién (`user_id`), qué tarea, qué modelo respondió, cuánto costó (`prompt_tokens`/`completion_tokens`), si vino de caché (`from_cache`) o fue bloqueada por un guardrail (`blocked_by_guardrail`), y un campo `approved` (nulo por defecto, usado a partir de la Fase 6 para contenido que requiere aprobación docente — RF-32/RF-33). |
+| `rag_documents` | Un documento fuente ingerido como material de referencia para el Agente Tutor (§9.3): apuntes del docente, referencia de PSeInt, etc. |
+| `rag_chunks` | Un fragmento embebido de un `rag_document` (columna `embedding`, `vector(384)` vía pgvector — dimensión del modelo `intfloat/multilingual-e5-small`). Sin `institution_id` propio: el aislamiento multi-tenant se hereda del `rag_document` padre, nunca duplicado. |
+
+El harness de IA (`ai/harness/`) no tiene tablas propias más allá de `ai_interactions`: el presupuesto diario por estudiante (§9.1 "control de costos") y la caché de respuestas viven en Redis, no en Postgres — ver `docs/adr/003-harness-como-fachada-unica.md` para el porqué de este diseño y de la recuperación híbrida (vector + texto completo) del RAG.

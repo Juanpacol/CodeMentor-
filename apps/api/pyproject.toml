@@ -29,6 +29,8 @@ dependencies = [
     "mcp>=1.1",
     "structlog>=24.4",
     "tenacity>=9.0",
+    "langfuse>=2.53",
+    "numpy>=1.26",
 ]
 
 [dependency-groups]
