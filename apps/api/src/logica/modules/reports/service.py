@@ -14,13 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.config import get_settings
 from logica.core.errors import NotFoundError, PermissionDeniedError
+from logica.modules.evaluations.models import Evaluation
 from logica.modules.groups.models import Group
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.progress.models import AcademicPeriod
 from logica.modules.progress.repository import get_academic_period
 from logica.modules.reports import repository
 from logica.modules.reports.models import ReportFormat, ReportJob
-from logica.modules.reports.repository import StudentReportRow
+from logica.modules.reports.repository import GradebookStudentRow, StudentReportRow
 from logica.modules.users.models import User
 
 logger = structlog.get_logger()
@@ -192,8 +193,20 @@ async def get_report_job_for_user(
     return job
 
 
+async def get_group_gradebook(
+    db: AsyncSession, user: User, group_id: uuid.UUID
+) -> tuple[list[Evaluation], list[GradebookStudentRow]]:
+    _, is_teacher_view = await get_group_with_access(db, user, group_id)
+    if not is_teacher_view:
+        raise PermissionDeniedError(
+            "Solo un docente o administrador puede ver el libro de calificaciones"
+        )
+    return await repository.gradebook_rows(db, group_id)
+
+
 __all__ = [
     "generate_group_report",
+    "get_group_gradebook",
     "get_report_job_for_user",
     "request_group_report",
 ]

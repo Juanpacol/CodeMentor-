@@ -12,7 +12,14 @@ from logica.core.permissions import require_role
 from logica.db import get_db
 from logica.modules.reports import service
 from logica.modules.reports.models import ReportStatus
-from logica.modules.reports.schemas import ReportJobOut, ReportRequest
+from logica.modules.reports.schemas import (
+    GradebookEvaluationOut,
+    GradebookOut,
+    GradebookScoreOut,
+    GradebookStudentOut,
+    ReportJobOut,
+    ReportRequest,
+)
 from logica.modules.users.models import User
 
 router = APIRouter(tags=["reports"])
@@ -66,4 +73,29 @@ async def download_report(
         path,
         media_type=_CONTENT_TYPES[job.format.value],
         filename=f"reporte-{job.group_id}.{job.format.value}",
+    )
+
+
+@router.get("/groups/{group_id}/gradebook", response_model=GradebookOut)
+async def get_gradebook(
+    group_id: uuid.UUID,
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+) -> GradebookOut:
+    evaluations, students = await service.get_group_gradebook(db, user, group_id)
+    return GradebookOut(
+        evaluations=[GradebookEvaluationOut.model_validate(e) for e in evaluations],
+        students=[
+            GradebookStudentOut(
+                student_id=row.student_id,
+                full_name=row.full_name,
+                scores=[
+                    GradebookScoreOut(evaluation_id=s.evaluation_id, total_score=s.total_score)
+                    for s in row.scores
+                ],
+                evaluations_submitted=row.evaluations_submitted,
+                avg_evaluation_score=row.avg_evaluation_score,
+            )
+            for row in students
+        ],
     )

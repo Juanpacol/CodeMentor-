@@ -928,6 +928,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/groups/{group_id}/gradebook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Gradebook */
+        get: operations["get_gradebook_groups__group_id__gradebook_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1255,6 +1272,52 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             status?: components["schemas"]["ExerciseStatus"] | null;
+        };
+        /** GradebookEvaluationOut */
+        GradebookEvaluationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            mode: components["schemas"]["EvaluationMode"];
+            /** Is Ranked */
+            is_ranked: boolean;
+        };
+        /** GradebookOut */
+        GradebookOut: {
+            /** Evaluations */
+            evaluations: components["schemas"]["GradebookEvaluationOut"][];
+            /** Students */
+            students: components["schemas"]["GradebookStudentOut"][];
+        };
+        /** GradebookScoreOut */
+        GradebookScoreOut: {
+            /**
+             * Evaluation Id
+             * Format: uuid
+             */
+            evaluation_id: string;
+            /** Total Score */
+            total_score: number;
+        };
+        /** GradebookStudentOut */
+        GradebookStudentOut: {
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
+            /** Full Name */
+            full_name: string;
+            /** Scores */
+            scores: components["schemas"]["GradebookScoreOut"][];
+            /** Evaluations Submitted */
+            evaluations_submitted: number;
+            /** Avg Evaluation Score */
+            avg_evaluation_score: number | null;
         };
         /** GradingSuggestionOut */
         GradingSuggestionOut: {
@@ -3803,6 +3866,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_gradebook_groups__group_id__gradebook_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradebookOut"];
                 };
             };
             /** @description Validation Error */

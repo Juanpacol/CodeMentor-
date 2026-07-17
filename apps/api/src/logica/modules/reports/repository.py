@@ -28,6 +28,21 @@ class StudentReportRow:
     badges_count: int
 
 
+@dataclass(frozen=True)
+class GradebookScore:
+    evaluation_id: uuid.UUID
+    total_score: float
+
+
+@dataclass(frozen=True)
+class GradebookStudentRow:
+    student_id: uuid.UUID
+    full_name: str
+    scores: list[GradebookScore]
+    evaluations_submitted: int
+    avg_evaluation_score: float | None
+
+
 async def create_report_job(
     db: AsyncSession,
     institution_id: uuid.UUID,
@@ -137,3 +152,60 @@ async def student_report_rows(
             )
         )
     return rows
+
+
+async def gradebook_rows(
+    db: AsyncSession, group_id: uuid.UUID
+) -> tuple[list[Evaluation], list[GradebookStudentRow]]:
+    """Vista en vivo de calificaciones (a diferencia de `student_report_rows`,
+    que agrega por periodo para el export async xlsx/pdf): misma definición
+    de `avg_evaluation_score` — promedio de `total_score` sobre intentos
+    presentados — para que ambas vistas coincidan, pero aquí se conserva el
+    detalle por evaluación en vez de solo el promedio."""
+    evaluations_stmt = (
+        select(Evaluation).where(Evaluation.group_id == group_id).order_by(Evaluation.created_at)
+    )
+    evaluations = list((await db.execute(evaluations_stmt)).scalars().all())
+
+    members_stmt = (
+        select(User)
+        .join(GroupMembership, GroupMembership.student_id == User.id)
+        .where(GroupMembership.group_id == group_id)
+        .order_by(User.full_name)
+    )
+    students = list((await db.execute(members_stmt)).scalars().all())
+
+    attempts_stmt = (
+        select(
+            EvaluationAttempt.student_id,
+            EvaluationAttempt.evaluation_id,
+            EvaluationAttempt.total_score,
+        )
+        .join(Evaluation, Evaluation.id == EvaluationAttempt.evaluation_id)
+        .where(
+            Evaluation.group_id == group_id,
+            EvaluationAttempt.status == AttemptStatus.submitted,
+        )
+    )
+    attempts = (await db.execute(attempts_stmt)).all()
+
+    scores_by_student: dict[uuid.UUID, list[GradebookScore]] = {}
+    for student_id, evaluation_id, total_score in attempts:
+        scores_by_student.setdefault(student_id, []).append(
+            GradebookScore(evaluation_id=evaluation_id, total_score=total_score)
+        )
+
+    rows: list[GradebookStudentRow] = []
+    for student in students:
+        scores = scores_by_student.get(student.id, [])
+        avg_score = sum(s.total_score for s in scores) / len(scores) if scores else None
+        rows.append(
+            GradebookStudentRow(
+                student_id=student.id,
+                full_name=student.full_name,
+                scores=scores,
+                evaluations_submitted=len(scores),
+                avg_evaluation_score=avg_score,
+            )
+        )
+    return evaluations, rows

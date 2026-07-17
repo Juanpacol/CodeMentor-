@@ -8,6 +8,7 @@ import { qk } from '../../lib/api/queries'
 import { AgentsTab } from './AgentsTab'
 import { AnalyticsTab } from './AnalyticsTab'
 import { CurriculumTab } from './CurriculumTab'
+import { GradebookTab } from './GradebookTab'
 import { MembersTab } from './MembersTab'
 import { ReportsTab } from './ReportsTab'
 
@@ -36,6 +37,7 @@ export function TeacherGroupDetailPage() {
           { value: 'miembros', label: 'Miembros' },
           { value: 'agentes', label: 'Agentes IA' },
           { value: 'analitica', label: 'Analítica' },
+          { value: 'calificaciones', label: 'Calificaciones' },
           { value: 'reportes', label: 'Reportes' },
         ]}
       />
@@ -44,6 +46,7 @@ export function TeacherGroupDetailPage() {
       {tab === 'miembros' && <MembersTab groupId={groupId} />}
       {tab === 'agentes' && <AgentsTab groupId={groupId} />}
       {tab === 'analitica' && <AnalyticsTab groupId={groupId} />}
+      {tab === 'calificaciones' && <GradebookTab groupId={groupId} />}
       {tab === 'reportes' && <ReportsTab groupId={groupId} />}
     </div>
   )

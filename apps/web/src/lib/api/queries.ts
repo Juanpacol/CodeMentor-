@@ -32,6 +32,7 @@ export const qk = {
   },
   reports: {
     job: (jobId: string) => ['reports', jobId] as const,
+    gradebook: (groupId: string) => ['reports', 'gradebook', groupId] as const,
   },
   academicPeriods: ['academic-periods'] as const,
 }
