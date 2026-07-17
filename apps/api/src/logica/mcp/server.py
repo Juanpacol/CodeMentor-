@@ -32,7 +32,7 @@ from logica.modules.sandbox.pseint.interpreter import validate_pseint as pseint_
 mcp = FastMCP(
     name="logica-mcp",
     instructions=(
-        "Servidor MCP de la plataforma Lógica>_. Todas las herramientas requieren "
+        "Servidor MCP de la plataforma CodeMentor. Todas las herramientas requieren "
         "el access_token de un docente autenticado (mismo token que /auth/login)."
     ),
 )

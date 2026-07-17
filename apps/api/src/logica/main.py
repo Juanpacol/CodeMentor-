@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
-        title="Lógica>_ API",
+        title="CodeMentor API",
         description=(
             "Plataforma de lógica de programación (PSeInt y Python) — INEM José Félix de Restrepo"
         ),
