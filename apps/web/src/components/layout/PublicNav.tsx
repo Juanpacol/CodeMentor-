@@ -6,7 +6,7 @@ export function PublicNav() {
   return (
     <header className="flex items-center justify-between px-6 py-4 md:px-12">
       <Link to="/" className="font-mono text-lg font-semibold text-ink">
-        Lógica&gt;_
+        CodeMentor
       </Link>
       <div className="flex items-center gap-3">
         <Link to="/login">

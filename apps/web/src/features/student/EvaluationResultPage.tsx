@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'motion/react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
 import { Badge } from '../../components/ui/Badge'
 import { Card } from '../../components/ui/Card'
@@ -58,6 +58,12 @@ export function EvaluationResultPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <Link
+        to={take ? `/app/grupos/${take.evaluation.group_id}` : '/app'}
+        className="mb-4 inline-block text-sm text-ink-secondary hover:text-ink"
+      >
+        ← Volver al grupo
+      </Link>
       <h1 className="mb-6 text-2xl font-semibold text-ink">
         Resultado — {take?.evaluation.title ?? 'Evaluación'}
       </h1>

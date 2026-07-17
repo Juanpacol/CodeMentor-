@@ -6,7 +6,7 @@ export function AuthLayout({ title, subtitle, children }: { title: string; subti
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4">
       <Link to="/" className="mb-8 font-mono text-lg font-semibold text-ink">
-        Lógica&gt;_
+        CodeMentor
       </Link>
       <motion.div
         initial={{ opacity: 0, y: 12 }}

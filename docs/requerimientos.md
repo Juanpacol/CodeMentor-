@@ -14,7 +14,7 @@ Julio de 2026
 
 ## 1. Introducción y alcance
 
-Este documento consolida los requerimientos necesarios para llevar el prototipo funcional de "Lógica>_" — una plataforma para que estudiantes se inscriban, practiquen lógica de programación en pseudocódigo (PSeInt) y Python, y presenten evaluaciones, mientras el equipo docente crea contenidos, grupos y hace seguimiento al progreso — a una versión profesional, segura y lista para crecer dentro de la institución y, eventualmente, a otras sedes o instituciones.
+Este documento consolida los requerimientos necesarios para llevar el prototipo funcional de "CodeMentor" — una plataforma para que estudiantes se inscriban, practiquen lógica de programación en pseudocódigo (PSeInt) y Python, y presenten evaluaciones, mientras el equipo docente crea contenidos, grupos y hace seguimiento al progreso — a una versión profesional, segura y lista para crecer dentro de la institución y, eventualmente, a otras sedes o instituciones.
 
 El documento se organiza en dos grandes bloques:
 

@@ -1,6 +1,6 @@
-# Lógica>_ — Frontend
+# CodeMentor — Frontend
 
-SPA en React + TypeScript + Vite para la plataforma "Lógica>_". Modo nocturno único
+SPA en React + TypeScript + Vite para la plataforma "CodeMentor". Modo nocturno único
 (estética Notion night), Tailwind v4, TanStack Query, `motion` para animaciones.
 
 ## Desarrollo

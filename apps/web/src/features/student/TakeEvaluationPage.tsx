@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { exerciseRenderers, EXERCISE_TYPE_LABELS } from '../../components/exercises/registry'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
+import { Dialog } from '../../components/ui/Dialog'
 import { Spinner } from '../../components/ui/Spinner'
 import { Tag } from '../../components/ui/Tag'
 import { useCountdown } from '../../hooks/useCountdown'
@@ -25,6 +26,7 @@ export function TakeEvaluationPage() {
   const [answers, setAnswers] = useState<Record<string, Record<string, unknown>>>({})
   const [savedAt, setSavedAt] = useState<Record<string, number>>({})
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [exitDialogOpen, setExitDialogOpen] = useState(false)
 
   const { data: take, isLoading } = useQuery({
     queryKey: qk.evaluation.take(evaluationId!),
@@ -92,7 +94,16 @@ export function TakeEvaluationPage() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-ink">{take.evaluation.title}</h1>
+        <div>
+          <button
+            type="button"
+            onClick={() => setExitDialogOpen(true)}
+            className="mb-1 block text-sm text-ink-secondary hover:text-ink"
+          >
+            ← Salir
+          </button>
+          <h1 className="text-2xl font-semibold text-ink">{take.evaluation.title}</h1>
+        </div>
         {secondsLeft !== null && (
           <span
             className={cn(
@@ -172,6 +183,29 @@ export function TakeEvaluationPage() {
           </Card>
         )}
       </div>
+
+      <Dialog
+        open={exitDialogOpen}
+        onClose={() => setExitDialogOpen(false)}
+        title="¿Salir de la evaluación?"
+      >
+        <p className="text-sm text-ink-secondary">
+          Tus respuestas guardadas se conservan, pero salir no envía la evaluación. El tiempo
+          sigue corriendo aunque cierres esta página; si el plazo vence sin enviar, se calificará
+          con lo que hayas respondido.
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setExitDialogOpen(false)}>
+            Seguir respondiendo
+          </Button>
+          <Button
+            disabled={submit.isPending}
+            onClick={() => navigate(`/app/grupos/${take.evaluation.group_id}`)}
+          >
+            Salir sin enviar
+          </Button>
+        </div>
+      </Dialog>
     </div>
   )
 }

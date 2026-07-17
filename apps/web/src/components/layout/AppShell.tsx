@@ -30,7 +30,7 @@ function SidebarContent({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () =
   return (
     <>
       <div className="mb-6 px-2">
-        <span className="font-mono text-lg font-semibold text-ink">Lógica&gt;_</span>
+        <span className="font-mono text-lg font-semibold text-ink">CodeMentor</span>
       </div>
       <nav className="flex flex-1 flex-col gap-1">
         {nav.map((item) => (
@@ -74,7 +74,7 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-hairline bg-surface px-4 py-3 md:hidden">
-          <span className="font-mono text-lg font-semibold text-ink">Lógica&gt;_</span>
+          <span className="font-mono text-lg font-semibold text-ink">CodeMentor</span>
           <button
             aria-label="Abrir menú"
             aria-expanded={mobileNavOpen}

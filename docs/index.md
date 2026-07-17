@@ -1,4 +1,4 @@
-# Lógica>_
+# CodeMentor
 
 Plataforma web de lógica de programación (PSeInt y Python) para el INEM José Félix de Restrepo, diseñada como un sistema profesional de referencia en **AI Engineering**: harness de modelos con enrutamiento y fallback, RAG pedagógico, agentes con supervisión humana obligatoria, skills reutilizables expuestas también vía MCP, evals y observabilidad de IA.
 

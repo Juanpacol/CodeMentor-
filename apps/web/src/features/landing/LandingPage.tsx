@@ -169,7 +169,7 @@ export function LandingPage() {
       </section>
 
       <footer className="border-t border-hairline px-6 py-10 text-center text-sm text-ink-secondary">
-        Lógica&gt;_ — INEM José Félix de Restrepo
+        CodeMentor — INEM José Félix de Restrepo
       </footer>
     </div>
   )

@@ -1,4 +1,4 @@
-# Lógica>_
+# CodeMentor
 
 [![CI](https://github.com/Juanpacol/CodeMentor-/actions/workflows/ci.yml/badge.svg)](https://github.com/Juanpacol/CodeMentor-/actions/workflows/ci.yml)
 
