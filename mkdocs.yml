@@ -16,6 +16,7 @@ theme:
 
 nav:
   - Inicio: index.md
+  - Requerimientos: requerimientos.md
   - Arquitectura: arquitectura.md
   - Diccionario de datos: diccionario-datos.md
   - Guía de despliegue: despliegue.md

@@ -160,3 +160,7 @@ Requiere la API corriendo (`make up`) — `http://localhost:5173` ya está permi
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST` | opcionales |
 
 CI/CD: GitHub Actions (`ci.yml`) ejecuta lint + tests + evals + security en cada push/PR; Render y Vercel hacen el despliegue real por su propia integración nativa con GitHub al hacer merge a `main` — no hace falta un workflow de CD separado.
+
+### Documentación (MkDocs → GitHub Pages)
+
+`docs.yml` construye `docs/` con MkDocs y publica el sitio en GitHub Pages en cada push a `main` que toque `docs/**` o `mkdocs.yml`. Esto solo requiere permisos del propio repositorio (no hace falta ninguna cuenta externa) — pero sí un paso manual **una sola vez**: en `Settings > Pages`, cambiar "Source" a **GitHub Actions** (por defecto viene en "Deploy from a branch", que ese workflow no usa). Sin ese cambio, el job `deploy` falla aunque `build` esté en verde.
