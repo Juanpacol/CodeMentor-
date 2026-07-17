@@ -50,6 +50,7 @@ from logica.modules.grading.sanitize import strip_answer_key
 from logica.modules.grading.types import GradeResult
 from logica.modules.groups.repository import get_membership
 from logica.modules.groups.service import get_group_with_access
+from logica.modules.progress.service import evaluate_and_award_badges
 from logica.modules.users.models import Role, User
 
 # Grace period after the timer runs out — protects against clock skew / a
@@ -448,6 +449,9 @@ async def submit_practice(
     )
     db.add(submission)
     await db.flush()
+
+    await evaluate_and_award_badges(db, student, exercise=exercise, topic_ids=topic_ids)
+
     return submission
 
 

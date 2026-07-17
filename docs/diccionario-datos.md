@@ -70,3 +70,18 @@ El harness de IA (`ai/harness/`) no tiene tablas propias más allá de `ai_inter
 | `evaluation_answers.ai_suggested_score` / `ai_suggested_justification` (columnas añadidas) | La sugerencia del Asistente de calificación (RF-33), deliberadamente separada de `score`/`manual_score`: una calificación solo cambia cuando el docente la confirma explícitamente vía el endpoint de revisión manual ya existente desde la Fase 3. |
 
 Los 5 agentes no introdujeron un runtime de "Pydantic AI" pese a estar planeado inicialmente — ver `docs/adr/004-agentes-sin-runtime-de-pydantic-ai.md` para la justificación. Cada agente es una función que llama a `ai.harness.complete_task()` (texto libre) o a `ai.harness.structured.complete_structured()` (JSON validado con reintento), nunca al modelo directamente.
+
+## Fase 7
+
+No se agregan tablas nuevas. El servidor MCP (`logica.mcp`, ver `docs/adr/005-mcp-server-dentro-de-apps-api.md`) reexpone skills/agentes ya existentes sin persistir nada propio; los datasets golden de evals viven como archivos YAML en el repo (`tests/evals/datasets/`), no en la base de datos; y las métricas de observabilidad (`ai/harness/metrics.py`, `/metrics`) son contadores en memoria de `prometheus_client`, no filas.
+
+## Fase 8 (migración `007`)
+
+| Tabla | Descripción |
+|---|---|
+| `badges` | Catálogo de insignias por institución (RF-29): `criteria` (`topic_mastery`/`language_mastery`/`practice_streak`) + `threshold` describen la regla, no el tema/lenguaje concreto — eso vive en `student_badges`. Se asegura de forma perezosa la primera vez que se evalúan insignias para una institución (`progress.service.ensure_default_badges`), no en una migración de datos. |
+| `student_badges` | Una insignia ganada por un estudiante, con `language_id`/`topic_id` opcionales según el alcance de la insignia. Único por `(student_id, badge_id, language_id, topic_id)`. |
+| `academic_periods` | Un rango de fechas con nombre (RF-17, por ejemplo "Periodo 1 - 2026") que un docente crea explícitamente; progreso y reportes lo usan para acotar una consulta por fecha — no altera ninguna tabla existente. |
+| `report_jobs` | Un job de exportación (RF-16, RE-03): se crea en `pending` al recibir la solicitud, el worker de arq lo mueve a `processing` → `done`/`failed`. `file_path` apunta al archivo generado (Excel/PDF) en `settings.reports_dir`, un volumen compartido entre `api` y `worker` en Docker Compose — no hay almacenamiento de objetos (S3) para mantener el despliegue 100% gratuito. |
+
+Puntos y dominio por tema/lenguaje (RF-29) se calculan sobre la marcha a partir de `practice_submissions` (Fase 3) — no hay una tabla de "puntos" separada, evitando que se desincronice de la fuente real de los envíos. Lecturas calientes (RE-02): el temario de una institución (`GET /topics`, `GET /groups/{id}/curriculum`) se cachea en Redis (`topics:{institution_id}`, TTL 5 min) con invalidación explícita en `create_topic`/`update_topic` — el mismo patrón cache-aside que ya usaba la tabla de posiciones (Fase 3) para rankings.

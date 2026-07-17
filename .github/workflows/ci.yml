@@ -57,6 +57,12 @@ jobs:
           version: "0.11.29"
       - run: uv python install 3.12
       - run: uv sync --dev
+      # WeasyPrint (RF-16 exportación a PDF) needs these system libs — see
+      # apps/api/Dockerfile, same packages installed there for prod images.
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 libffi-dev shared-mime-info
       - run: uv run alembic upgrade head
       - run: uv run pytest -m "not sandbox and not live" --cov=logica --cov-report=term-missing
 

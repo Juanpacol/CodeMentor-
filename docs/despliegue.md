@@ -93,7 +93,17 @@ Además del tracing de Langfuse (por llamada de IA), la API expone métricas Pro
 
 Para un dashboard local rápido, apuntar un Prometheus local a `http://localhost:8000/metrics` (ajustar el puerto según `API_HOST_PORT`) — no forma parte de `docker-compose.yml` por defecto para mantener el stack liviano; Grafana/Prometheus quedan como algo que cualquier desplegador puede añadir apuntando a ese endpoint ya expuesto.
 
-## Producción (tiers gratuitos)
+### Reportes exportables (Fase 8, RF-16, RE-03)
+
+`POST /groups/{id}/reports` (`{"format": "xlsx"|"pdf", "period_id": "..."}` opcional) encola un job de arq y responde `202` de inmediato con el job en estado `pending` — la generación real (consultas + `openpyxl`/`weasyprint`) corre en el worker, nunca bloquea la API. `GET /reports/{job_id}` permite hacer polling del estado; `GET /reports/{job_id}/download` transmite el archivo una vez `status == "done"`.
+
+El archivo generado se escribe en `settings.reports_dir` (`REPORTS_DIR`, por defecto `/app/reports` en Docker) — un volumen (`reports_data`) compartido entre `api` y `worker` en `docker-compose.yml`, para que ambos procesos vean el mismo archivo sin necesitar almacenamiento de objetos (S3/similar) y mantener el despliegue 100% gratuito.
+
+La exportación a PDF depende de las mismas librerías de sistema de WeasyPrint que ya instala `apps/api/Dockerfile` (Pango/GdkPixbuf) — si se corre la API fuera de Docker en una máquina que no las tiene, la exportación a Excel sigue funcionando, pero la de PDF falla; los tests que ejercitan ese camino están marcados `@pytest.mark.pdf` y se excluyen de `make test` por la misma razón que los de sandbox.
+
+### Caché de lecturas calientes (RE-02)
+
+El temario de una institución (`GET /topics`, `GET /groups/{id}/curriculum`) se cachea en Redis con `cache-aside` (clave `topics:{institution_id}`, TTL 5 minutos) e invalidación explícita cuando un docente crea o edita un tema — el mismo patrón que ya usaba la tabla de posiciones de evaluaciones (Fase 3) para rankings. No requiere configuración adicional.
 
 Definido en detalle en la Fase 10 del plan de implementación. Resumen:
 

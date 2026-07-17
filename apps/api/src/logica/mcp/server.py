@@ -129,7 +129,7 @@ async def curriculum_resource(access_token: str, group_id: str) -> list[dict[str
     session_factory = get_session_factory()
     async with session_factory() as db:
         teacher = await resolve_teacher(db, access_token)
-        curriculum = await get_curriculum_for_group(db, teacher, uuid.UUID(group_id))
+        curriculum = await get_curriculum_for_group(db, _get_redis(), teacher, uuid.UUID(group_id))
         return [
             {
                 "topic": item.topic.name,

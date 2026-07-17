@@ -73,7 +73,7 @@ plugins = ["pydantic.mypy"]
 exclude = ["alembic/"]
 
 [[tool.mypy.overrides]]
-module = ["litellm.*", "arq.*", "weasyprint.*", "lark.*"]
+module = ["litellm.*", "arq.*", "weasyprint.*", "lark.*", "openpyxl.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -82,6 +82,7 @@ testpaths = ["tests"]
 markers = [
     "sandbox: requires the Piston sandbox container",
     "live: hits a real external LLM provider (costs tokens/quota)",
+    "pdf: requires WeasyPrint's system libraries (Pango/GdkPixbuf)",
 ]
 
 [build-system]

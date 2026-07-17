@@ -2,6 +2,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import structlog
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -17,6 +19,8 @@ from logica.modules.content.router import router as content_router
 from logica.modules.evaluations.router import router as evaluations_router
 from logica.modules.exercises.router import router as exercises_router
 from logica.modules.groups.router import router as groups_router
+from logica.modules.progress.router import router as progress_router
+from logica.modules.reports.router import router as reports_router
 from logica.modules.sandbox.router import router as sandbox_router
 from logica.modules.users.router import auth_router, users_router
 
@@ -27,11 +31,16 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     app.state.redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    # RF-16/RE-03: the API only ever enqueues report jobs, never builds the
+    # file itself — the arq worker (same Redis queue as the scheduled-topics
+    # cron) does the actual work off the request path.
+    app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
     logger.info("app_startup", env=settings.env)
     try:
         yield
     finally:
         await app.state.redis.aclose()
+        await app.state.arq_pool.aclose()
         await get_engine().dispose()
         logger.info("app_shutdown")
 
@@ -88,6 +97,8 @@ def create_app() -> FastAPI:
     app.include_router(evaluations_router)
     app.include_router(sandbox_router)
     app.include_router(ai_agents_router)
+    app.include_router(progress_router)
+    app.include_router(reports_router)
 
     return app
 

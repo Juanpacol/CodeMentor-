@@ -35,6 +35,11 @@ class Settings(BaseSettings):
 
     sandbox_url: str = "http://localhost:2000"
 
+    # RF-16/RE-03: exported reports are written here by the arq worker and
+    # streamed back by the API — a shared Docker volume in compose, a plain
+    # local folder otherwise. No S3/object storage needed to stay 100% free.
+    reports_dir: str = "./reports"
+
     ai_daily_token_budget_per_student: int = 20_000
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])

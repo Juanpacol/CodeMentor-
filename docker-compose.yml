@@ -43,6 +43,7 @@ services:
     volumes:
       - ./apps/api:/app
       - api_venv:/app/.venv
+      - reports_data:/app/reports
     command: uvicorn logica.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       postgres:
@@ -61,6 +62,7 @@ services:
     volumes:
       - ./apps/api:/app
       - worker_venv:/app/.venv
+      - reports_data:/app/reports
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,3 +115,4 @@ volumes:
   ollama_data:
   api_venv:
   worker_venv:
+  reports_data:

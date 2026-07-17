@@ -23,9 +23,15 @@ from logica.modules.evaluations.models import (  # noqa: F401
 )
 from logica.modules.exercises.models import Exercise, TopicExercise  # noqa: F401
 from logica.modules.groups.models import Group, GroupMembership  # noqa: F401
+from logica.modules.progress.models import (  # noqa: F401
+    AcademicPeriod,
+    Badge,
+    StudentBadge,
+)
+from logica.modules.reports.models import ReportJob  # noqa: F401
 from logica.modules.users.models import Institution, PasswordResetToken, User  # noqa: F401
 
-# (populated incrementally as each domain module is implemented — see Fase 7+)
+# (populated incrementally as each domain module is implemented — see Fase 9+)
 
 config = context.config
 

@@ -1,14 +1,16 @@
 import uuid
 
 from fastapi import APIRouter, Depends
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.core.permissions import require_role
+from logica.core.redis_dep import get_redis
 from logica.core.security import get_current_user
 from logica.db import get_db
 from logica.modules.content import service
 from logica.modules.content.models import Language, Topic
-from logica.modules.content.repository import list_languages, list_topics
+from logica.modules.content.repository import list_languages
 from logica.modules.content.schemas import (
     CurriculumTopicOut,
     LanguageCreateRequest,
@@ -50,9 +52,10 @@ async def create_topic(
     payload: TopicCreateRequest,
     user: User = Depends(RequireTeacher),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
 ) -> Topic:
     topic = await service.create_topic(
-        db, user, payload.language_id, payload.name, payload.level, payload.order_index
+        db, redis, user, payload.language_id, payload.name, payload.level, payload.order_index
     )
     await db.commit()
     return topic
@@ -63,8 +66,9 @@ async def list_all_topics(
     language_id: uuid.UUID | None = None,
     user: User = Depends(RequireTeacher),
     db: AsyncSession = Depends(get_db),
-) -> list[Topic]:
-    return await list_topics(db, user.institution_id, language_id)
+    redis: Redis = Depends(get_redis),
+) -> list[TopicOut]:
+    return await service.list_topics_cached(db, redis, user.institution_id, language_id)
 
 
 @router.patch("/topics/{topic_id}", response_model=TopicOut)
@@ -73,9 +77,10 @@ async def update_topic(
     payload: TopicUpdateRequest,
     user: User = Depends(RequireTeacher),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
 ) -> Topic:
     topic = await service.update_topic(
-        db, user, topic_id, payload.name, payload.level, payload.order_index
+        db, redis, user, topic_id, payload.name, payload.level, payload.order_index
     )
     await db.commit()
     return topic
@@ -123,5 +128,6 @@ async def get_curriculum(
     group_id: uuid.UUID,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
 ) -> list[CurriculumTopicOut]:
-    return await service.get_curriculum_for_group(db, user, group_id)
+    return await service.get_curriculum_for_group(db, redis, user, group_id)

@@ -1,6 +1,8 @@
+import json
 import uuid
 from datetime import UTC, datetime
 
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.core.errors import ConflictError, NotFoundError, PermissionDeniedError
@@ -22,6 +24,43 @@ from logica.modules.content.repository import (
 from logica.modules.content.schemas import CurriculumTopicOut, TopicOut
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.users.models import Role, User
+
+# RE-02: el temario de una institución cambia poco (un docente lo edita
+# ocasionalmente) pero se lee en cada carga de la página de práctica de cada
+# estudiante — el caso de libro de texto para cache-aside con invalidación
+# explícita en el único par de escrituras que lo afectan.
+_TOPICS_CACHE_TTL_SECONDS = 300
+
+
+def _topics_cache_key(institution_id: uuid.UUID) -> str:
+    return f"topics:{institution_id}"
+
+
+async def _invalidate_topics_cache(redis: Redis, institution_id: uuid.UUID) -> None:
+    await redis.delete(_topics_cache_key(institution_id))
+
+
+async def list_topics_cached(
+    db: AsyncSession,
+    redis: Redis,
+    institution_id: uuid.UUID,
+    language_id: uuid.UUID | None = None,
+) -> list[TopicOut]:
+    cache_key = _topics_cache_key(institution_id)
+    cached = await redis.get(cache_key)
+    if cached is not None:
+        all_topics = [TopicOut.model_validate(item) for item in json.loads(cached)]
+    else:
+        db_topics = await list_topics(db, institution_id)
+        all_topics = [TopicOut.model_validate(t) for t in db_topics]
+        await redis.setex(
+            cache_key,
+            _TOPICS_CACHE_TTL_SECONDS,
+            json.dumps([t.model_dump(mode="json") for t in all_topics]),
+        )
+    if language_id is not None:
+        return [t for t in all_topics if t.language_id == language_id]
+    return all_topics
 
 
 def _ensure_teacher(user: User) -> None:
@@ -48,6 +87,7 @@ async def create_language(
 
 async def create_topic(
     db: AsyncSession,
+    redis: Redis,
     user: User,
     language_id: uuid.UUID,
     name: str,
@@ -66,6 +106,7 @@ async def create_topic(
     db.add(topic)
     await db.flush()
     await db.refresh(topic)
+    await _invalidate_topics_cache(redis, user.institution_id)
     return topic
 
 
@@ -78,6 +119,7 @@ async def _get_topic_in_institution(db: AsyncSession, user: User, topic_id: uuid
 
 async def update_topic(
     db: AsyncSession,
+    redis: Redis,
     user: User,
     topic_id: uuid.UUID,
     name: str | None,
@@ -102,6 +144,8 @@ async def update_topic(
 
     await db.flush()
     await db.refresh(topic)
+    if changed:
+        await _invalidate_topics_cache(redis, user.institution_id)
     return topic
 
 
@@ -162,11 +206,11 @@ async def schedule_topic_for_group(
 
 
 async def get_curriculum_for_group(
-    db: AsyncSession, user: User, group_id: uuid.UUID
+    db: AsyncSession, redis: Redis, user: User, group_id: uuid.UUID
 ) -> list[CurriculumTopicOut]:
     group, is_teacher_view = await get_group_with_access(db, user, group_id)
 
-    topics = await list_topics(db, user.institution_id)
+    topics = await list_topics_cached(db, redis, user.institution_id)
     states_by_topic = {s.topic_id: s for s in await list_topic_group_states_for_group(db, group_id)}
 
     result: list[CurriculumTopicOut] = []
@@ -183,7 +227,7 @@ async def get_curriculum_for_group(
 
         result.append(
             CurriculumTopicOut(
-                topic=TopicOut.model_validate(topic),
+                topic=topic,
                 state=state_value,
                 enabled_at=state.enabled_at if state else None,
                 scheduled_enable_at=state.scheduled_enable_at if state else None,
