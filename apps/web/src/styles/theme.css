@@ -1,0 +1,88 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+/*
+ * "Notion night" — paleta derivada de notion.design.md (marketing claro de
+ * Notion) trasladada al modo nocturno real de la app. Solo modo oscuro: no
+ * hay toggle, así que estos tokens son los únicos que existen.
+ */
+@theme {
+  --color-canvas: #191919;
+  --color-surface: #202020;
+  --color-raised: #252525;
+  --color-overlay: #2f2f2f;
+  --color-hover: rgb(255 255 255 / 0.055);
+  --color-hairline: rgb(255 255 255 / 0.094);
+  --color-hairline-strong: rgb(255 255 255 / 0.16);
+
+  --color-ink: rgb(255 255 255 / 0.81);
+  --color-ink-secondary: rgb(255 255 255 / 0.46);
+  --color-ink-muted: rgb(255 255 255 / 0.28);
+
+  --color-primary: #5645d4;
+  --color-primary-hover: #6a5ae0;
+  --color-primary-pressed: #4534b3;
+  --color-navy: #0a1530;
+  --color-navy-deep: #070f24;
+
+  --color-tint-peach: #3d2a1f;
+  --color-tint-peach-fg: #ffb38a;
+  --color-tint-rose: #3a2230;
+  --color-tint-rose-fg: #ff9ec9;
+  --color-tint-mint: #1e3328;
+  --color-tint-mint-fg: #6fd39a;
+  --color-tint-lavender: #2a2440;
+  --color-tint-lavender-fg: #b3a5f0;
+  --color-tint-sky: #1e2c3d;
+  --color-tint-sky-fg: #7fb8e8;
+  --color-tint-yellow: #3a331c;
+  --color-tint-yellow-fg: #e8cf6f;
+
+  --color-success: #4dab6d;
+  --color-warning: #d9822b;
+  --color-error: #eb5757;
+
+  --radius-btn: 8px;
+  --radius-card: 12px;
+
+  --font-sans: 'Inter Variable', -apple-system, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-hairline);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
