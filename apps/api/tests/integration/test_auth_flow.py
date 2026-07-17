@@ -128,3 +128,13 @@ async def test_password_reset_confirm_changes_password(
         "/auth/login", json={"email": email, "password": "ClaveNueva123!"}
     )
     assert new_login.status_code == 200
+
+
+async def test_security_headers_present(client: AsyncClient) -> None:
+    resp = await client.get("/health")
+    assert resp.headers["x-content-type-options"] == "nosniff"
+    assert resp.headers["x-frame-options"] == "DENY"
+    assert resp.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert "permissions-policy" in resp.headers
+    # HSTS solo se envía con ENV=prod; en tests (ENV=dev por defecto) no debe estar.
+    assert "strict-transport-security" not in resp.headers

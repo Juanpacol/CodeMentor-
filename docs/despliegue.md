@@ -118,6 +118,13 @@ Requiere la API corriendo (`make up`) — `http://localhost:5173` ya está permi
 
 **Tests**: `make web-test` (vitest, componentes/hooks) corre en CI en cada push (job `web`). `make e2e` (Playwright, 3 flujos contra el stack Docker real) es **local-only** — no corre en CI porque requeriría levantar todo el stack en Actions; se reevaluará en esta misma Fase 10 junto con el deploy.
 
+### Hardening (Fase 10, RE-08)
+
+- **Cabeceras de seguridad** (`core/security_headers.py`): toda respuesta incluye `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y `Permissions-Policy` restrictivo. `Strict-Transport-Security` solo se envía con `ENV=prod` — en dev/local la API corre sobre HTTP plano y un HSTS prematuro dejaría el navegador forzando HTTPS en `localhost`.
+- **Límites de tasa** (`core/rate_limit.py`, vía `slowapi` + el mismo Redis del resto de la app): `POST /auth/register` (10/hora), `/auth/login` (10/min), `/auth/refresh` (60/min), `/auth/password-reset/request` (5/hora) y `/password-reset/confirm` (10/hora) por IP. También solo se activan con `ENV=prod` — en dev/test decenas de flujos y tests golpean `/auth/login` repetidamente y un límite real produciría `429` sin relación con lo que se está probando. `ENV=prod` es, por lo tanto, una variable requerida en el despliegue real (ver tabla de abajo).
+- **CORS**: `CORS_ORIGINS` sigue siendo una lista explícita (por defecto solo `http://localhost:5173`); en producción debe incluir la URL real del frontend desplegado (Vercel).
+- **Escaneo estático** (job `security` en CI, `apps/api`): `bandit -r src` (análisis AST de patrones inseguros) y `pip-audit` (CVEs conocidas en dependencias) corren en cada push/PR, además de los `select = ["E","F","I","UP","B","SIM","ASYNC","S"]` de ruff que ya cubren buena parte de OWASP en cada commit.
+
 ## Producción (tiers gratuitos)
 
 Definido en detalle en la Fase 10 del plan de implementación. Resumen:

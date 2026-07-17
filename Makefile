@@ -1,4 +1,4 @@
-.PHONY: help up up-ai up-sandbox down logs api-shell lint fmt typecheck test test-sandbox evals migrate migrate-test migration seed sandbox-install-python web-install web-dev web-test e2e
+.PHONY: help up up-ai up-sandbox down logs api-shell lint fmt typecheck test test-sandbox test-pdf evals migrate migrate-test migration seed sandbox-install-python web-install web-dev web-test e2e
 
 API_DIR := apps/api
 WEB_DIR := apps/web
@@ -34,6 +34,7 @@ help:
 	@echo "make typecheck     - mypy strict"
 	@echo "make test          - pytest contra logica_test (unit+integration)"
 	@echo "make test-sandbox  - pytest incluyendo pruebas reales contra Piston (requiere up-sandbox)"
+	@echo "make test-pdf      - pytest de exportación a PDF (requiere libs de sistema de WeasyPrint)"
 	@echo "make sandbox-install-python - instala el runtime de Python en Piston"
 	@echo "make evals         - suite de evaluaciones de IA (modo mock por defecto)"
 	@echo "make migrate       - aplicar migraciones alembic (DB de desarrollo)"
@@ -75,12 +76,17 @@ typecheck:
 test:
 	cd $(API_DIR) && \
 	DATABASE_URL="$(HOST_TEST_DATABASE_URL)" REDIS_URL="$(HOST_TEST_REDIS_URL)" \
-	uv run pytest -m "not sandbox and not live" --cov=logica --cov-report=term-missing
+	uv run pytest -m "not sandbox and not live and not pdf" --cov=logica --cov-report=term-missing
 
 test-sandbox:
 	cd $(API_DIR) && \
 	DATABASE_URL="$(HOST_TEST_DATABASE_URL)" REDIS_URL="$(HOST_TEST_REDIS_URL)" SANDBOX_URL="$(HOST_SANDBOX_URL)" \
 	uv run pytest -m "sandbox"
+
+test-pdf:
+	cd $(API_DIR) && \
+	DATABASE_URL="$(HOST_TEST_DATABASE_URL)" REDIS_URL="$(HOST_TEST_REDIS_URL)" \
+	uv run pytest -m "pdf"
 
 sandbox-install-python:
 	curl -s -X POST http://localhost:$${PISTON_HOST_PORT:-2000}/api/v2/packages \

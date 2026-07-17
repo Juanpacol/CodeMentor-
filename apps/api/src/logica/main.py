@@ -9,11 +9,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from redis.asyncio import Redis
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 
 from logica.ai.agents.router import router as ai_agents_router
 from logica.config import get_settings
 from logica.core.errors import LogicaError
+from logica.core.rate_limit import limiter
+from logica.core.security_headers import SecurityHeadersMiddleware
 from logica.db import get_engine
 from logica.modules.content.router import router as content_router
 from logica.modules.evaluations.router import router as evaluations_router
@@ -63,6 +67,20 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # RE-08 hardening: límites de tasa en endpoints de auth (solo ENV=prod,
+    # ver core/rate_limit.py). El handler propio mantiene el mismo formato
+    # {"detail": "..."} que el resto de errores de la API.
+    app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
+
+    @app.exception_handler(RateLimitExceeded)
+    async def handle_rate_limit(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Demasiados intentos. Intenta de nuevo en unos minutos."},
+        )
 
     # General HTTP metrics (§4.4/§9.4 "observabilidad"): request count/latency
     # by route, method, status — separate from the AI-specific metrics in
