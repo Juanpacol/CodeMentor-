@@ -59,3 +59,14 @@ No se agregan tablas nuevas. La migración `004` amplía el enum `exercise_type`
 | `rag_chunks` | Un fragmento embebido de un `rag_document` (columna `embedding`, `vector(384)` vía pgvector — dimensión del modelo `intfloat/multilingual-e5-small`). Sin `institution_id` propio: el aislamiento multi-tenant se hereda del `rag_document` padre, nunca duplicado. |
 
 El harness de IA (`ai/harness/`) no tiene tablas propias más allá de `ai_interactions`: el presupuesto diario por estudiante (§9.1 "control de costos") y la caché de respuestas viven en Redis, no en Postgres — ver `docs/adr/003-harness-como-fachada-unica.md` para el porqué de este diseño y de la recuperación híbrida (vector + texto completo) del RAG.
+
+## Fase 6 (migración `006`)
+
+| Tabla | Descripción |
+|---|---|
+| `agent_configs` | Interruptor por grupo para cada uno de los 5 agentes (RF-30). Único por `(group_id, agent_name)`; la **ausencia** de una fila significa "habilitado" — el valor por defecto — así que un grupo nuevo no necesita 5 filas sembradas de entrada. |
+| `tutor_messages` | Historial de chat del Agente Tutor (RF-31, RF-35): un mensaje del estudiante y uno de respuesta del tutor por cada pista, siempre distinguibles por `role` (`student`/`tutor`) — nunca se confunde con un mensaje de un docente humano. |
+| `code_integrity_alerts` | Alerta informativa del agente de integridad de código, ligada a una `evaluation_answer` — nunca modifica una calificación por sí sola (§9.2). |
+| `evaluation_answers.ai_suggested_score` / `ai_suggested_justification` (columnas añadidas) | La sugerencia del Asistente de calificación (RF-33), deliberadamente separada de `score`/`manual_score`: una calificación solo cambia cuando el docente la confirma explícitamente vía el endpoint de revisión manual ya existente desde la Fase 3. |
+
+Los 5 agentes no introdujeron un runtime de "Pydantic AI" pese a estar planeado inicialmente — ver `docs/adr/004-agentes-sin-runtime-de-pydantic-ai.md` para la justificación. Cada agente es una función que llama a `ai.harness.complete_task()` (texto libre) o a `ai.harness.structured.complete_structured()` (JSON validado con reintento), nunca al modelo directamente.

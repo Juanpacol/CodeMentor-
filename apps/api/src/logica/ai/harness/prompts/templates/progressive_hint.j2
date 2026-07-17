@@ -7,4 +7,9 @@ Enunciado del ejercicio: {{ statement }}
 Número de intento del estudiante: {{ attempt_number }}
 Respuesta más reciente del estudiante: {{ student_answer }}
 
+{% if reference_context %}
+Material de referencia del curso (fundamenta tu pista en esto cuando aplique):
+{{ reference_context }}
+{% endif %}
+
 Responde en español, en un tono cercano y respetuoso para un adolescente, en máximo 3 frases. No uses la palabra "respuesta correcta" ni des el valor final.

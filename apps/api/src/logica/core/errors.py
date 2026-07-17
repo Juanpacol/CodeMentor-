@@ -22,3 +22,12 @@ class ConflictError(LogicaError):
 
 class ValidationDomainError(LogicaError):
     status_code = 422
+
+
+class ServiceUnavailableError(LogicaError):
+    """§9.4 "plan de contingencia sin IA": a downstream dependency (every LLM
+    provider in the harness's fallback chain, the sandbox, etc.) is down.
+    Distinct from a 500 — this is an expected, handled failure mode with a
+    clear message, not a bug."""
+
+    status_code = 503

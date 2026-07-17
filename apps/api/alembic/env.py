@@ -7,6 +7,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Import all module models here so Base.metadata is fully populated for autogenerate.
+from logica.ai.agents.models import AgentConfig, CodeIntegrityAlert, TutorMessage  # noqa: F401
 from logica.ai.models import AiInteraction  # noqa: F401
 from logica.ai.rag.models import RagChunk, RagDocument  # noqa: F401
 from logica.config import get_settings
@@ -24,7 +25,7 @@ from logica.modules.exercises.models import Exercise, TopicExercise  # noqa: F40
 from logica.modules.groups.models import Group, GroupMembership  # noqa: F401
 from logica.modules.users.models import Institution, PasswordResetToken, User  # noqa: F401
 
-# (populated incrementally as each domain module is implemented — see Fase 6+)
+# (populated incrementally as each domain module is implemented — see Fase 7+)
 
 config = context.config
 

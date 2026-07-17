@@ -84,6 +84,17 @@ class ManualReviewSubmitRequest(BaseModel):
     score: float = Field(ge=0.0, le=1.0)
 
 
+class AnswerSummaryOut(BaseModel):
+    answer_id: uuid.UUID
+    evaluation_exercise_id: uuid.UUID
+    student_id: uuid.UUID
+    score: float
+    correct: bool
+    needs_manual_review: bool
+    manual_score: float | None
+    ai_suggested_score: float | None
+
+
 class RankingEntryOut(BaseModel):
     student_id: uuid.UUID
     total_score: float

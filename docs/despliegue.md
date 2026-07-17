@@ -45,7 +45,7 @@ GROQ_API_KEY=...      # https://console.groq.com/keys — free tier
 GEMINI_API_KEY=...    # https://aistudio.google.com/apikey — free tier
 ```
 
-Ollama (`make up-ai`) sirve como último respaldo local, sin API key. Sin ninguna key configurada, el harness sigue funcionando en pruebas (la función `_completion_fn` se sustituye por un doble en los tests) pero fallará en uso real si los tres proveedores de la cadena no responden — ver `AllProvidersFailedError`.
+Ollama (`make up-ai`) sirve como último respaldo local, sin API key. Sin ninguna key configurada, el harness sigue funcionando en pruebas (la función `_completion_fn` se sustituye por un doble en los tests); en uso real, si los tres proveedores de la cadena fallan, la petición responde `503` con un mensaje claro en español (`AllProvidersFailedError`, §9.4 "plan de contingencia sin IA") — nunca un 500 crudo, y la funcionalidad no relacionada con IA sigue intacta.
 
 Langfuse (perfil `ai`, `make up-ai`) traza cada llamada (modelo, tokens, si vino de caché) automáticamente en cuanto `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` estén configurados; sin ellos, el tracing no-opera silenciosamente (nunca rompe una petición). El panel de Langfuse queda disponible en `http://localhost:3010` tras `make up-ai`.
 

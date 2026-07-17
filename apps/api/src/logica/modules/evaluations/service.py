@@ -34,6 +34,7 @@ from logica.modules.evaluations.repository import (
     get_evaluation,
     get_evaluation_exercise,
     list_answers_for_attempt,
+    list_answers_for_evaluation,
     list_evaluation_exercises,
     list_pending_manual_review,
 )
@@ -338,6 +339,19 @@ async def list_manual_review_queue(
         assert exercise is not None
         result.append((answer, attempt, exercise))
     return result
+
+
+async def list_all_answers(
+    db: AsyncSession, teacher: User, evaluation_id: uuid.UUID
+) -> list[tuple[EvaluationAnswer, uuid.UUID]]:
+    """Teacher-facing browse view of every submitted answer (not just those
+    awaiting manual review) — e.g. so a teacher can pick a `live_code`
+    submission to run through the code-integrity check (§9.2), which has
+    nothing to do with `needs_manual_review`."""
+    _ensure_teacher(teacher)
+    evaluation = await _get_evaluation_in_institution(db, teacher, evaluation_id)
+    await get_group_with_access(db, teacher, evaluation.group_id)
+    return await list_answers_for_evaluation(db, evaluation_id)
 
 
 async def submit_manual_review(

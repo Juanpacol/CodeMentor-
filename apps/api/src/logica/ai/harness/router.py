@@ -10,8 +10,12 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 import litellm
+import structlog
 
 from logica.config import get_settings
+from logica.core.errors import ServiceUnavailableError
+
+logger = structlog.get_logger()
 
 TaskTier = Literal["cheap", "capable"]
 
@@ -43,10 +47,19 @@ TASK_TIERS: dict[str, TaskTier] = {
 }
 
 
-class AllProvidersFailedError(Exception):
+class AllProvidersFailedError(ServiceUnavailableError):
+    """§9.4 "plan de contingencia sin IA": every model in the fallback chain
+    failed (e.g. no provider API keys configured, or all three down at
+    once). A `LogicaError` subclass so it reaches the client as a clean,
+    Spanish 503 — not a raw 500 — matching the requirement that an AI
+    outage never silently breaks the surrounding feature."""
+
     def __init__(self, task: str, errors: list[str]) -> None:
         self.errors = errors
-        super().__init__(f"Todos los proveedores fallaron para la tarea '{task}': {errors}")
+        super().__init__(
+            "El asistente de IA no está disponible en este momento. "
+            "Puedes seguir trabajando sin él; tu docente puede ayudarte manualmente mientras tanto."
+        )
 
 
 @dataclass(frozen=True)
@@ -94,4 +107,5 @@ async def complete(task: str, messages: list[dict[str, str]]) -> CompletionResul
             completion_tokens=getattr(usage, "completion_tokens", 0) if usage else 0,
         )
 
+    logger.error("ai_all_providers_failed", task=task, errors=errors)
     raise AllProvidersFailedError(task, errors)

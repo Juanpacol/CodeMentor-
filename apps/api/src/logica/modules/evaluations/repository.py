@@ -91,6 +91,23 @@ async def list_pending_manual_review(
     return list(result.scalars().all())
 
 
+async def list_answers_for_evaluation(
+    db: AsyncSession, evaluation_id: uuid.UUID
+) -> list[tuple[EvaluationAnswer, uuid.UUID]]:
+    """All (answer, student_id) pairs across every student's attempt — the
+    teacher-facing view used to browse submissions (e.g. to pick one for a
+    code-integrity check, §9.2), as opposed to `list_pending_manual_review`
+    which only surfaces answers still awaiting a grade."""
+    stmt = (
+        select(EvaluationAnswer, EvaluationAttempt.student_id)
+        .join(EvaluationExercise, EvaluationExercise.id == EvaluationAnswer.evaluation_exercise_id)
+        .join(EvaluationAttempt, EvaluationAttempt.id == EvaluationAnswer.attempt_id)
+        .where(EvaluationExercise.evaluation_id == evaluation_id)
+    )
+    result = await db.execute(stmt)
+    return [(answer, student_id) for answer, student_id in result.all()]
+
+
 async def list_attempts_for_evaluation(
     db: AsyncSession, evaluation_id: uuid.UUID
 ) -> list[EvaluationAttempt]:

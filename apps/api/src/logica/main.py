@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 from sqlalchemy import text
 
+from logica.ai.agents.router import router as ai_agents_router
 from logica.config import get_settings
 from logica.core.errors import LogicaError
 from logica.db import get_engine
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
     app.include_router(exercises_router)
     app.include_router(evaluations_router)
     app.include_router(sandbox_router)
+    app.include_router(ai_agents_router)
 
     return app
 

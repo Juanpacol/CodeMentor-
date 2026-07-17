@@ -3,7 +3,6 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 from redis.asyncio import Redis
-from sqlalchemy import select
 
 from logica.ai.harness import budget
 from logica.ai.harness.harness import OutputBlockedByGuardrailError, complete_task
@@ -12,16 +11,8 @@ from logica.ai.repository import list_interactions_for_user
 from logica.config import get_settings
 from logica.core.errors import ConflictError, PermissionDeniedError
 from logica.db import get_session_factory
-from logica.modules.users.models import Institution, User
-from tests.integration.conftest import register_and_login
-
-
-async def _get_user(email: str) -> User:
-    session_factory = get_session_factory()
-    async with session_factory() as db:
-        result = await db.execute(select(User).where(User.email == email))
-        return result.scalar_one()
-
+from logica.modules.users.models import Institution
+from tests.integration.conftest import get_user_by_email, register_and_login
 
 _HINT_VARS: dict[str, Any] = {
     "language": "PSeInt",
@@ -40,7 +31,7 @@ async def test_complete_task_returns_text_and_records_interaction(
 ) -> None:
     domain = institution.email_domains[0]
     await register_and_login(client, email=f"est@{domain}", role="student")
-    user = await _get_user(f"est@{domain}")
+    user = await get_user_by_email(f"est@{domain}")
 
     async def fake_router_complete(task: str, messages: list[dict[str, str]]) -> CompletionResult:
         return CompletionResult(
@@ -83,7 +74,7 @@ async def test_second_call_with_same_prompt_hits_cache(
 ) -> None:
     domain = institution.email_domains[0]
     await register_and_login(client, email=f"est@{domain}", role="student")
-    user = await _get_user(f"est@{domain}")
+    user = await get_user_by_email(f"est@{domain}")
 
     calls = 0
 
@@ -122,7 +113,7 @@ async def test_budget_exhausted_blocks_before_calling_router(
 ) -> None:
     domain = institution.email_domains[0]
     await register_and_login(client, email=f"est@{domain}", role="student")
-    user = await _get_user(f"est@{domain}")
+    user = await get_user_by_email(f"est@{domain}")
 
     called = False
 
@@ -156,7 +147,7 @@ async def test_output_guardrail_blocks_full_solution_during_evaluation(
 ) -> None:
     domain = institution.email_domains[0]
     await register_and_login(client, email=f"est@{domain}", role="student")
-    user = await _get_user(f"est@{domain}")
+    user = await get_user_by_email(f"est@{domain}")
 
     async def fake_router_complete(task: str, messages: list[dict[str, str]]) -> CompletionResult:
         return CompletionResult(
@@ -195,7 +186,7 @@ async def test_input_guardrail_blocks_prompt_injection_before_any_call(
 ) -> None:
     domain = institution.email_domains[0]
     await register_and_login(client, email=f"est@{domain}", role="student")
-    user = await _get_user(f"est@{domain}")
+    user = await get_user_by_email(f"est@{domain}")
 
     called = False
 

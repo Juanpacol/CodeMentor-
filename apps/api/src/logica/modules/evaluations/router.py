@@ -11,6 +11,7 @@ from logica.core.security import get_current_user
 from logica.db import get_db
 from logica.modules.evaluations import service
 from logica.modules.evaluations.schemas import (
+    AnswerSummaryOut,
     AttemptResultOut,
     EvaluationCreateRequest,
     EvaluationOut,
@@ -155,6 +156,28 @@ async def get_ranking(
     entries = await service.get_ranking(redis, evaluation_id)
     return [
         RankingEntryOut(student_id=student_id, total_score=score) for student_id, score in entries
+    ]
+
+
+@router.get("/evaluations/{evaluation_id}/answers", response_model=list[AnswerSummaryOut])
+async def list_evaluation_answers(
+    evaluation_id: uuid.UUID,
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+) -> list[AnswerSummaryOut]:
+    pairs = await service.list_all_answers(db, user, evaluation_id)
+    return [
+        AnswerSummaryOut(
+            answer_id=answer.id,
+            evaluation_exercise_id=answer.evaluation_exercise_id,
+            student_id=student_id,
+            score=answer.score,
+            correct=answer.correct,
+            needs_manual_review=answer.needs_manual_review,
+            manual_score=answer.manual_score,
+            ai_suggested_score=answer.ai_suggested_score,
+        )
+        for answer, student_id in pairs
     ]
 
 

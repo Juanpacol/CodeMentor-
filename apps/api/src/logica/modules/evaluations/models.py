@@ -12,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -122,6 +123,11 @@ class EvaluationAnswer(UUIDPkMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # RF-33: the Grading Assistant's suggestion, kept strictly separate from
+    # `manual_score` — a teacher must explicitly confirm (or overrule) it via
+    # the existing manual-review endpoint before it ever affects a grade.
+    ai_suggested_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ai_suggested_justification: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class PracticeSubmission(UUIDPkMixin, TenantMixin, TimestampMixin, Base):

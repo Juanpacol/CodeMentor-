@@ -4,11 +4,11 @@ from collections.abc import AsyncIterator
 import pytest
 from httpx import AsyncClient
 from redis.asyncio import Redis
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from logica.config import get_settings
 from logica.db import get_engine, get_session_factory
-from logica.modules.users.models import Institution
+from logica.modules.users.models import Institution, User
 
 _TABLES = (
     "audit_logs",
@@ -86,6 +86,13 @@ async def institution() -> Institution:
 
 def auth_headers(access_token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}"}
+
+
+async def get_user_by_email(email: str) -> User:
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        result = await db.execute(select(User).where(User.email == email))
+        return result.scalar_one()
 
 
 async def register_and_login(
