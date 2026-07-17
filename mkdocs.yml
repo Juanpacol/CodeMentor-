@@ -24,6 +24,7 @@ nav:
       - ADR-002 Sandbox fuera del registro síncrono: adr/002-sandbox-fuera-del-registro-sincrono.md
       - ADR-003 Harness como fachada única: adr/003-harness-como-fachada-unica.md
       - ADR-004 Agentes sin runtime de Pydantic AI: adr/004-agentes-sin-runtime-de-pydantic-ai.md
+      - ADR-005 Servidor MCP dentro de apps/api: adr/005-mcp-server-dentro-de-apps-api.md
 
 markdown_extensions:
   - admonition

@@ -20,7 +20,7 @@ from logica.modules.groups.service import get_group_with_access
 from logica.modules.users.models import Role, User
 
 
-async def _practice_stats(db: AsyncSession, group_id: uuid.UUID) -> dict[str, Any]:
+async def get_practice_stats(db: AsyncSession, group_id: uuid.UUID) -> dict[str, Any]:
     total_stmt = select(func.count(PracticeSubmission.id)).where(
         PracticeSubmission.group_id == group_id
     )
@@ -78,5 +78,17 @@ async def summarize_group(
     if group is None:
         raise NotFoundError("Grupo no encontrado")
 
-    stats = await _practice_stats(db, group_id)
+    stats = await get_practice_stats(db, group_id)
     return await generate_group_summary(db, redis, teacher, group_name=group.name, stats=stats)
+
+
+async def get_group_stats(
+    db: AsyncSession, teacher: User, *, group_id: uuid.UUID
+) -> dict[str, Any]:
+    """Permission-checked wrapper around `get_practice_stats` — the raw
+    aggregation the MCP `stats://` resource (Fase 7) exposes without also
+    generating a natural-language summary (and its harness/LLM cost)."""
+    if teacher.role not in (Role.teacher, Role.admin):
+        raise PermissionDeniedError("Solo un docente o administrador puede ver estas estadísticas")
+    await get_group_with_access(db, teacher, group_id)
+    return await get_practice_stats(db, group_id)

@@ -30,6 +30,8 @@ dependencies = [
     "tenacity>=9.0",
     "langfuse>=2.53",
     "numpy>=1.26",
+    "prometheus-fastapi-instrumentator>=7.0",
+    "pyyaml>=6.0",
 ]
 
 [dependency-groups]

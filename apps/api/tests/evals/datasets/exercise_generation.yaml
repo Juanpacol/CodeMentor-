@@ -1,0 +1,191 @@
+# Golden dataset — tarea "exercise_generation" (§9.4, RF-32). `fake_model_output`
+# es el JSON que produciría el modelo; el runner lo pasa por el mismo
+# `complete_structured(..., output_model=ExerciseGenerationOutput)` que usa el
+# agente real, así que un cambio que rompa el parseo/validación de la
+# plantilla lo detecta esta suite.
+cases:
+  - id: true_false_ciclos_basico
+    template_vars:
+      exercise_type: "true_false"
+      topic_name: "Ciclos"
+      language: "PSeInt"
+      level: "basico"
+      reference_context: ""
+      similar_exercises: ""
+      schema_hint: '{"title": "...", "content": {"statement": "...", "answer": true}}'
+    fake_model_output: >-
+      {"title": "Ciclo Mientras evalúa antes de ejecutar",
+      "content": {"statement": "Un ciclo Mientras siempre ejecuta su bloque al menos una vez.", "answer": false}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["statement", "answer"]
+
+  - id: multiple_choice_condicionales_basico
+    template_vars:
+      exercise_type: "multiple_choice"
+      topic_name: "Estructuras condicionales"
+      language: "Python"
+      level: "basico"
+      reference_context: ""
+      similar_exercises: "- ¿Qué imprime este código?"
+      schema_hint: >-
+        {"title": "...", "content": {"statement": "...", "options": ["...", "..."],
+        "answer_index": 0}}
+    fake_model_output: >-
+      {"title": "Selección del operador de igualdad",
+      "content": {"statement": "¿Qué operador se usa para comparar igualdad en Python?",
+      "options": ["=", "==", "<>", "==="], "answer_index": 1}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["statement", "options", "answer_index"]
+
+  - id: fill_code_funciones_intermedio
+    template_vars:
+      exercise_type: "fill_code"
+      topic_name: "Funciones"
+      language: "Python"
+      level: "intermedio"
+      reference_context: "Las funciones en Python se declaran con def."
+      similar_exercises: ""
+      schema_hint: >-
+        {"title": "...", "content": {"statement": "...", "code_template": "...",
+        "blanks": ["...", "..."]}}
+    fake_model_output: >-
+      {"title": "Completa la declaración de una función",
+      "content": {"statement": "Completa el código para declarar una función llamada saludar",
+      "code_template": "___ saludar():\n    print('Hola')", "blanks": ["def"]}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["statement", "code_template", "blanks"]
+
+  - id: find_error_ciclos_basico
+    template_vars:
+      exercise_type: "find_error"
+      topic_name: "Ciclos"
+      language: "PSeInt"
+      level: "basico"
+      reference_context: ""
+      similar_exercises: ""
+      schema_hint: >-
+        {"title": "...", "content": {"statement": "...", "code": "...", "error_line": 1,
+        "error_kind": "sintaxis"}}
+    fake_model_output: >-
+      {"title": "Encuentra el error en el ciclo Para",
+      "content": {"statement": "Este ciclo tiene un error de sintaxis, ¿en qué línea está?",
+      "code": "Para i <- 1 Hasta 10\n    Escribir i\nFinPara", "error_line": 1,
+      "error_kind": "sintaxis"}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["statement", "code", "error_line", "error_kind"]
+
+  - id: trace_variables_ciclos_intermedio
+    template_vars:
+      exercise_type: "trace_variables"
+      topic_name: "Ciclos"
+      language: "PSeInt"
+      level: "intermedio"
+      reference_context: ""
+      similar_exercises: ""
+      schema_hint: >-
+        {"title": "...", "content": {"statement": "...", "code": "...",
+        "expected_trace": [{"variable": "valor"}]}}
+    fake_model_output: >-
+      {"title": "Traza los valores de un contador",
+      "content": {"statement": "Indica el valor de contador en cada vuelta del ciclo",
+      "code": "contador <- 0\nPara i <- 1 Hasta 3 Hacer\n    contador <- contador + i\nFinPara",
+      "expected_trace": [{"contador": 1}, {"contador": 3}, {"contador": 6}]}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["statement", "code", "expected_trace"]
+
+  - id: order_lines_funciones_basico
+    template_vars:
+      exercise_type: "order_lines"
+      topic_name: "Funciones"
+      language: "Python"
+      level: "basico"
+      reference_context: ""
+      similar_exercises: ""
+      schema_hint: >-
+        {"title": "...", "content": {"statement": "...", "lines": ["...", "..."],
+        "correct_order": [0, 1]}}
+    fake_model_output: >-
+      {"title": "Ordena la definición de una función",
+      "content": {"statement": "Ordena las líneas para definir correctamente una función",
+      "lines": ["    return a + b", "def sumar(a, b):"], "correct_order": [1, 0]}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["statement", "lines", "correct_order"]
+
+  - id: argued_response_arreglos_avanzado
+    template_vars:
+      exercise_type: "argued_response"
+      topic_name: "Arreglos"
+      language: "Python"
+      level: "avanzado"
+      reference_context: ""
+      similar_exercises: ""
+      schema_hint: '{"title": "...", "content": {"prompt": "..."}}'
+    fake_model_output: >-
+      {"title": "Complejidad de búsqueda en arreglos",
+      "content": {"prompt": "Explica por qué una búsqueda lineal en un arreglo desordenado
+      es O(n) y en qué caso sería más eficiente ordenarlo primero."}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["prompt"]
+
+  - id: live_code_funciones_intermedio
+    template_vars:
+      exercise_type: "live_code"
+      topic_name: "Funciones"
+      language: "Python"
+      level: "intermedio"
+      reference_context: ""
+      similar_exercises: ""
+      schema_hint: >-
+        {"title": "...", "content": {"language": "python", "version": "3.10.0",
+        "starter_code": "...", "test_cases": [{"stdin": "...", "expected_stdout": "..."}]}}
+    fake_model_output: >-
+      {"title": "Reto en vivo: suma de dos números",
+      "content": {"language": "python", "version": "3.10.0",
+      "starter_code": "a = int(input())\nb = int(input())\n",
+      "test_cases": [{"stdin": "2\n3\n", "expected_stdout": "5\n"}]}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["language", "version", "starter_code", "test_cases"]
+
+  - id: true_false_variables_basico_con_similares
+    template_vars:
+      exercise_type: "true_false"
+      topic_name: "Variables"
+      language: "PSeInt"
+      level: "basico"
+      reference_context: "Las variables se declaran con Definir nombre Como Tipo."
+      similar_exercises: "- Verdadero o falso sobre tipos de datos\n- Verdadero o falso sobre Entero vs Real"
+      schema_hint: '{"title": "...", "content": {"statement": "...", "answer": true}}'
+    fake_model_output: >-
+      {"title": "Declaración de variables numéricas",
+      "content": {"statement": "En PSeInt, una variable de tipo Real puede almacenar decimales.",
+      "answer": true}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["statement", "answer"]
+
+  - id: multiple_choice_ciclos_avanzado
+    template_vars:
+      exercise_type: "multiple_choice"
+      topic_name: "Ciclos"
+      language: "Python"
+      level: "avanzado"
+      reference_context: ""
+      similar_exercises: ""
+      schema_hint: >-
+        {"title": "...", "content": {"statement": "...", "options": ["...", "..."],
+        "answer_index": 0}}
+    fake_model_output: >-
+      {"title": "Diferencia entre while y for",
+      "content": {"statement": "¿Cuál ciclo es más adecuado cuando no se conoce de antemano el número de iteraciones?",
+      "options": ["for", "while", "ambos son iguales", "ninguno"], "answer_index": 1}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["statement", "options", "answer_index"]

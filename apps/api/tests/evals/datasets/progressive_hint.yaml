@@ -1,0 +1,212 @@
+# Golden dataset — tarea "progressive_hint" (§9.4).
+#
+# Cada caso fija la salida del modelo (`fake_model_output`, 0 tokens reales)
+# y ejercita el harness real (render_prompt → guardrails → complete_task)
+# para ese `template_vars`. Los `checks` son reglas, no comparación de texto
+# literal, porque la salida real de un LLM nunca es determinista — lo que sí
+# es determinista y debe protegerse es que la plantilla siga rindiendo bien
+# y que la pista fijada nunca "filtre" la solución completa.
+cases:
+  - id: pseint_ciclos_intento_1_sin_filtracion
+    template_vars:
+      language: "PSeInt"
+      topic_name: "Ciclos"
+      statement: "Escribe un algoritmo que sume los números del 1 al 10"
+      attempt_number: 1
+      student_answer: "no sé por dónde empezar"
+      reference_context: ""
+    fake_model_output: >-
+      Piensa en qué instrucción te permite repetir un bloque de código varias
+      veces sin escribirlo a mano cada vez. ¿Cuál de las estructuras que
+      vimos en clase repite pasos un número conocido de veces?
+    checks:
+      min_length: 20
+      must_not_contain:
+        - "Para i <- 1 Hasta 10"
+        - "suma <- suma + i"
+
+  - id: pseint_ciclos_intento_3_mas_especifica
+    template_vars:
+      language: "PSeInt"
+      topic_name: "Ciclos"
+      statement: "Escribe un algoritmo que sume los números del 1 al 10"
+      attempt_number: 3
+      student_answer: "Definir suma Como Entero"
+      reference_context: ""
+    fake_model_output: >-
+      Vas bien con la variable. Ahora necesitas un ciclo que recorra los
+      valores de 1 a 10 y en cada vuelta sume el valor actual a tu
+      acumulador. ¿Qué estructura de control conoces para eso?
+    checks:
+      min_length: 20
+      must_not_contain:
+        - "Para i <- 1 Hasta 10 Hacer"
+
+  - id: python_condicionales_intento_1
+    template_vars:
+      language: "Python"
+      topic_name: "Estructuras condicionales"
+      statement: "Escribe una función que diga si un número es par o impar"
+      attempt_number: 1
+      student_answer: "no entiendo qué operador usar"
+      reference_context: ""
+    fake_model_output: >-
+      Piensa en el operador módulo (%), que te da el resto de una división.
+      ¿Qué resto obtienes al dividir un número par entre 2?
+    checks:
+      min_length: 15
+      must_not_contain:
+        - "return n % 2 == 0"
+        - "def es_par"
+
+  - id: python_condicionales_intento_2_con_contexto
+    template_vars:
+      language: "Python"
+      topic_name: "Estructuras condicionales"
+      statement: "Escribe una función que diga si un número es par o impar"
+      attempt_number: 2
+      student_answer: "def es_par(n): if n % 2: return True"
+      reference_context: "El operador % devuelve el resto de una división entera."
+    fake_model_output: >-
+      Revisa la lógica: cuando el resto es 0 el número es par, no impar.
+      ¿Tu condición está devolviendo True en el caso correcto?
+    checks:
+      min_length: 15
+      must_not_contain:
+        - "return n % 2 == 0"
+
+  - id: pseint_arreglos_intento_1
+    template_vars:
+      language: "PSeInt"
+      topic_name: "Arreglos"
+      statement: "Encuentra el valor máximo de un arreglo de 10 números"
+      attempt_number: 1
+      student_answer: "no sé cómo recorrer el arreglo"
+      reference_context: ""
+    fake_model_output: >-
+      Necesitas una variable que guarde el "mayor visto hasta ahora" y un
+      ciclo que recorra cada posición del arreglo comparando. ¿Con qué
+      valor inicial arrancarías esa variable?
+    checks:
+      min_length: 15
+      must_not_contain:
+        - "mayor <- arreglo[1]"
+
+  - id: python_funciones_intento_1
+    template_vars:
+      language: "Python"
+      topic_name: "Funciones"
+      statement: "Escribe una función recursiva que calcule el factorial de un número"
+      attempt_number: 1
+      student_answer: "no sé cómo empezar con recursión"
+      reference_context: ""
+    fake_model_output: >-
+      Una función recursiva necesita un caso base que detenga la
+      repetición. ¿Cuál es el factorial de 0 o de 1? Ese es tu punto de
+      partida.
+    checks:
+      min_length: 15
+      must_not_contain:
+        - "return n * factorial(n - 1)"
+        - "if n <= 1: return 1"
+
+  - id: python_funciones_intento_4_casi_completo
+    template_vars:
+      language: "Python"
+      topic_name: "Funciones"
+      statement: "Escribe una función recursiva que calcule el factorial de un número"
+      attempt_number: 4
+      student_answer: "def factorial(n):\n    if n == 0:\n        return 1"
+      reference_context: ""
+    fake_model_output: >-
+      El caso base está bien. Ahora falta el caso recursivo: ¿cómo
+      expresarías factorial(n) en términos de factorial(n - 1)?
+    checks:
+      min_length: 15
+      must_not_contain:
+        - "return n * factorial(n - 1)"
+
+  - id: pseint_variables_intento_1_respuesta_vacia
+    template_vars:
+      language: "PSeInt"
+      topic_name: "Variables"
+      statement: "Declara una variable para guardar el nombre de un estudiante"
+      attempt_number: 1
+      student_answer: ""
+      reference_context: ""
+    fake_model_output: >-
+      No hay problema en no saber por dónde empezar. En PSeInt, ¿qué
+      palabra clave usamos para declarar una variable y qué tipo de dato
+      corresponde a un nombre de texto?
+    checks:
+      min_length: 15
+      must_not_contain:
+        - "Definir nombre Como Caracter"
+
+  - id: python_listas_intento_2
+    template_vars:
+      language: "Python"
+      topic_name: "Listas"
+      statement: "Escribe una función que invierta una lista sin usar reversed()"
+      attempt_number: 2
+      student_answer: "lo intenté con un for pero no me funcionó"
+      reference_context: ""
+    fake_model_output: >-
+      Buen intento. Piensa en recorrer la lista desde el final hacia el
+      principio y construir una nueva lista con esos valores. ¿Qué índice
+      usarías para empezar desde el último elemento?
+    checks:
+      min_length: 15
+      must_not_contain:
+        - "return lista[::-1]"
+
+  - id: pseint_condicionales_intento_1_con_contexto
+    template_vars:
+      language: "PSeInt"
+      topic_name: "Estructuras condicionales"
+      statement: "Clasifica un número como positivo, negativo o cero"
+      attempt_number: 1
+      student_answer: "no sé cómo comparar con cero"
+      reference_context: "Los operadores relacionales en PSeInt son >, <, >=, <=, = y <>."
+    fake_model_output: >-
+      Usa los operadores relacionales que viste en el material: uno para
+      "mayor que" y otro para "menor que" comparando contra 0. ¿Qué pasa
+      si ninguna de esas dos condiciones se cumple?
+    checks:
+      min_length: 15
+      must_not_contain:
+        - "Si numero > 0 Entonces"
+
+  - id: python_ciclos_intento_5_casi_solucion
+    template_vars:
+      language: "Python"
+      topic_name: "Ciclos"
+      statement: "Cuenta cuántas vocales tiene una cadena de texto"
+      attempt_number: 5
+      student_answer: "contador = 0\nfor letra in texto:\n    if letra in 'aeiou':"
+      reference_context: ""
+    fake_model_output: >-
+      Vas muy cerca. Dentro de ese if todavía falta la instrucción que
+      incrementa tu contador. ¿Qué operación usarías para sumarle 1?
+    checks:
+      min_length: 10
+      must_not_contain:
+        - "contador += 1"
+        - "contador = contador + 1"
+
+  - id: pseint_funciones_intento_1
+    template_vars:
+      language: "PSeInt"
+      topic_name: "Subprocesos"
+      statement: "Crea un subproceso que reciba dos números y devuelva el mayor"
+      attempt_number: 1
+      student_answer: "no sé cómo declarar un subproceso con retorno"
+      reference_context: ""
+    fake_model_output: >-
+      Un SubProceso que devuelve un valor necesita la palabra "SubProceso
+      resultado <- Nombre(...)" en su definición. ¿Qué comparación harías
+      entre los dos parámetros para decidir cuál devolver?
+    checks:
+      min_length: 15
+      must_not_contain:
+        - "Si a > b Entonces"

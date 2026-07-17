@@ -1,13 +1,15 @@
 """The harness facade (§9.1): the ONLY entry point any skill/agent should
 use to talk to an LLM. Composes, in strict order: render prompt → input
 guardrail → budget check → cache lookup → model router (with fallback) →
-output guardrail → cache write → usage/budget recording → trace → audit.
+output guardrail → cache write → usage/budget recording → trace → audit →
+metrics.
 
 No caller (Fase 6 skills/agents, or anything else) may call
 `ai.harness.router.complete` directly — going through here is what makes
 every one of §9.1's requirements (guardrails, cost control, auditability)
 apply uniformly instead of being re-implemented per-agent."""
 
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,10 +22,16 @@ from logica.ai.harness.guardrails import (
     check_input_safety,
     check_output_safety,
 )
+from logica.ai.harness.metrics import (
+    ai_errors_total,
+    ai_request_latency_seconds,
+    ai_requests_total,
+    ai_tokens_total,
+)
 from logica.ai.harness.prompts import render_prompt
 from logica.ai.harness.router import complete as router_complete
 from logica.ai.repository import record_interaction
-from logica.core.errors import ValidationDomainError
+from logica.core.errors import LogicaError, ValidationDomainError
 from logica.modules.users.models import User
 
 
@@ -52,6 +60,36 @@ async def complete_task(
     came from the student (e.g. their latest answer) — only that slice is
     checked for prompt-injection, since the rest of the rendered prompt is
     our own trusted template content."""
+    start = time.monotonic()
+    try:
+        result = await _complete_task_inner(
+            db,
+            redis,
+            task=task,
+            user=user,
+            template_vars=template_vars,
+            untrusted_input=untrusted_input,
+            forbid_full_solution=forbid_full_solution,
+        )
+    except LogicaError as exc:
+        ai_errors_total.labels(task=task, error_type=type(exc).__name__).inc()
+        raise
+    finally:
+        ai_request_latency_seconds.labels(task=task).observe(time.monotonic() - start)
+
+    return result
+
+
+async def _complete_task_inner(
+    db: AsyncSession,
+    redis: Redis,
+    *,
+    task: str,
+    user: User,
+    template_vars: dict[str, Any],
+    untrusted_input: str | None,
+    forbid_full_solution: bool,
+) -> HarnessResult:
     if untrusted_input:
         check_input_safety(untrusted_input)
 
@@ -82,6 +120,7 @@ async def complete_task(
             from_cache=True,
             student_alias=str(user.id),
         )
+        ai_requests_total.labels(task=task, model="cache", from_cache="true").inc()
         return HarnessResult(text=cached, model="cache", from_cache=True)
 
     result = await router_complete(task, messages=[{"role": "user", "content": prompt}])
@@ -131,5 +170,8 @@ async def complete_task(
         from_cache=False,
         student_alias=str(user.id),
     )
+
+    ai_requests_total.labels(task=task, model=result.model, from_cache="false").inc()
+    ai_tokens_total.labels(task=task).inc(result.prompt_tokens + result.completion_tokens)
 
     return HarnessResult(text=result.text, model=result.model, from_cache=False)

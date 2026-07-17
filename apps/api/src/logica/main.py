@@ -5,6 +5,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 from redis.asyncio import Redis
 from sqlalchemy import text
 
@@ -53,6 +54,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # General HTTP metrics (§4.4/§9.4 "observabilidad"): request count/latency
+    # by route, method, status — separate from the AI-specific metrics in
+    # ai.harness.metrics, exposed on the same /metrics endpoint for Prometheus.
+    Instrumentator().instrument(app).expose(app, include_in_schema=False)
 
     @app.exception_handler(LogicaError)
     async def handle_logica_error(request: Request, exc: LogicaError) -> JSONResponse:

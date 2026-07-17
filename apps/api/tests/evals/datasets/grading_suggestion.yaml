@@ -1,0 +1,147 @@
+# Golden dataset — tarea "grading_suggestion" (§9.4, RF-33). El resultado
+# validado por `complete_structured(..., output_model=GradingSuggestionOutput)`
+# nunca debe salirse de [0, 1] ni llegar con una justificación vacía — eso es
+# justo lo que impide que una sugerencia de IA se confunda con una nota real
+# (la nota real solo cambia vía confirmación docente, fuera de este flujo).
+cases:
+  - id: respuesta_completa_bien_justificada
+    template_vars:
+      rubric: "Debe explicar cuándo usar un ciclo Repetir en vez de un Mientras, con un ejemplo."
+      statement: "Explica cuándo usarías un ciclo Repetir en vez de un Mientras."
+      student_answer: >-
+        Repetir se usa cuando quieres que el ciclo se ejecute al menos una
+        vez, como validar una contraseña que se pide siempre al menos una
+        vez antes de comprobarla.
+    fake_model_output: >-
+      {"suggested_score": 0.95, "justification": "La respuesta identifica
+      correctamente el caso de uso de Repetir (ejecución garantizada al
+      menos una vez) y da un ejemplo válido y pertinente."}
+    checks:
+      score_range: [0.0, 1.0]
+      justification_min_length: 15
+
+  - id: respuesta_parcial_sin_ejemplo
+    template_vars:
+      rubric: "Debe explicar cuándo usar un ciclo Repetir en vez de un Mientras, con un ejemplo."
+      statement: "Explica cuándo usarías un ciclo Repetir en vez de un Mientras."
+      student_answer: "Repetir se ejecuta primero y luego pregunta."
+    fake_model_output: >-
+      {"suggested_score": 0.5, "justification": "La respuesta menciona
+      correctamente el orden de ejecución pero no da un ejemplo concreto
+      como pide la rúbrica."}
+    checks:
+      score_range: [0.0, 1.0]
+      justification_min_length: 15
+
+  - id: respuesta_vacia
+    template_vars:
+      rubric: "Debe explicar cuándo usar un ciclo Repetir en vez de un Mientras, con un ejemplo."
+      statement: "Explica cuándo usarías un ciclo Repetir en vez de un Mientras."
+      student_answer: ""
+    fake_model_output: >-
+      {"suggested_score": 0.0, "justification": "La respuesta está vacía y
+      no aborda ningún elemento de la rúbrica."}
+    checks:
+      score_range: [0.0, 1.0]
+      justification_min_length: 15
+
+  - id: respuesta_fuera_de_tema
+    template_vars:
+      rubric: "Debe explicar la diferencia entre recursión e iteración."
+      statement: "¿Cuál es la diferencia entre una función recursiva y un ciclo?"
+      student_answer: "Python es un lenguaje interpretado y fácil de aprender."
+    fake_model_output: >-
+      {"suggested_score": 0.05, "justification": "La respuesta no aborda la
+      pregunta: describe características generales de Python en vez de
+      comparar recursión con iteración."}
+    checks:
+      score_range: [0.0, 1.0]
+      justification_min_length: 15
+
+  - id: respuesta_correcta_pero_breve
+    template_vars:
+      rubric: "Debe mencionar que la recursión usa la pila de llamadas y necesita un caso base."
+      statement: "¿Qué riesgo tiene una función recursiva sin caso base?"
+      student_answer: "Nunca para y se desborda la pila."
+    fake_model_output: >-
+      {"suggested_score": 0.8, "justification": "La respuesta es correcta y
+      concisa: identifica el desbordamiento de pila como consecuencia de la
+      falta de caso base."}
+    checks:
+      score_range: [0.0, 1.0]
+      justification_min_length: 15
+
+  - id: respuesta_con_error_conceptual
+    template_vars:
+      rubric: "Debe explicar que los arreglos en la mayoría de lenguajes empiezan en el índice 0."
+      statement: "¿Cuál es el índice del primer elemento de un arreglo en Python?"
+      student_answer: "El índice del primer elemento es 1."
+    fake_model_output: >-
+      {"suggested_score": 0.1, "justification": "La respuesta contiene un
+      error conceptual: en Python (y la mayoría de lenguajes) los arreglos
+      inician en el índice 0, no en 1."}
+    checks:
+      score_range: [0.0, 1.0]
+      justification_min_length: 15
+
+  - id: respuesta_extensa_pero_repetitiva
+    template_vars:
+      rubric: "Debe explicar la diferencia entre paso por valor y paso por referencia."
+      statement: "Explica la diferencia entre paso por valor y paso por referencia en funciones."
+      student_answer: >-
+        Paso por valor es cuando pasas el valor. Paso por referencia es
+        cuando pasas la referencia. Son diferentes formas de pasar
+        parámetros a una función.
+    fake_model_output: >-
+      {"suggested_score": 0.35, "justification": "La respuesta es
+      circular: repite los términos de la pregunta sin explicar qué
+      distingue realmente a cada mecanismo (copia del valor vs. acceso al
+      mismo objeto)."}
+    checks:
+      score_range: [0.0, 1.0]
+      justification_min_length: 15
+
+  - id: respuesta_con_codigo_correcto
+    template_vars:
+      rubric: "Debe mostrar una función que calcule el promedio de una lista de números."
+      statement: "Escribe y explica una función para calcular el promedio de una lista."
+      student_answer: >-
+        def promedio(lista):
+            return sum(lista) / len(lista)
+        Esta función suma todos los elementos y divide entre la cantidad
+        de elementos.
+    fake_model_output: >-
+      {"suggested_score": 1.0, "justification": "El código es correcto y la
+      explicación describe con precisión lo que hace: sumar y dividir
+      entre la cantidad de elementos."}
+    checks:
+      score_range: [0.0, 1.0]
+      justification_min_length: 15
+
+  - id: respuesta_con_codigo_con_error
+    template_vars:
+      rubric: "Debe mostrar una función que calcule el promedio de una lista de números."
+      statement: "Escribe y explica una función para calcular el promedio de una lista."
+      student_answer: >-
+        def promedio(lista):
+            return sum(lista) / len(lista) - 1
+    fake_model_output: >-
+      {"suggested_score": 0.4, "justification": "La lógica de suma y
+      división es correcta pero el `-1` final introduce un error que
+      cambia el resultado; no hay explicación acompañando el código."}
+    checks:
+      score_range: [0.0, 1.0]
+      justification_min_length: 15
+
+  - id: respuesta_en_ingles_pero_correcta
+    template_vars:
+      rubric: "Debe explicar qué es una variable en programación."
+      statement: "¿Qué es una variable?"
+      student_answer: "A variable is a named space in memory that stores a value."
+    fake_model_output: >-
+      {"suggested_score": 0.85, "justification": "La definición es
+      correcta y completa aunque esté en inglés; cubre el concepto de
+      espacio de memoria nombrado que almacena un valor."}
+    checks:
+      score_range: [0.0, 1.0]
+      justification_min_length: 15

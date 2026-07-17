@@ -59,6 +59,40 @@ uv run python -m scripts.ingest_rag --institution <uuid-institución> --title "R
 
 Esto trocea el documento, calcula embeddings locales (`intfloat/multilingual-e5-small`, gratis, sin llamada externa) y los guarda en `pgvector`. La recuperación (`ai/rag/retriever.py`) combina similitud vectorial con búsqueda de texto completo en español — ver `docs/adr/003-harness-como-fachada-unica.md`.
 
+### Servidor MCP (Fase 7, §9.2)
+
+El servidor MCP (`logica.mcp.server`, ver `docs/adr/005-mcp-server-dentro-de-apps-api.md`) reexpone 4 tools (`validate_pseint`, `run_code`, `generate_exercise_draft`, `get_group_summary`) y 2 resources (`curriculum://`, `stats://`) a cualquier cliente MCP — pensado como demo de portafolio conectándolo a Claude Desktop o Claude Code. Todo tool/resource requiere el mismo `access_token` JWT que devuelve `POST /auth/login`, y solo lo acepta si pertenece a un docente o administrador (§9.2 "nunca para estudiantes").
+
+Para conectarlo a **Claude Desktop**, agregar a su `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "logica": {
+      "command": "uv",
+      "args": ["run", "--project", "/ruta/a/CodeMentor/apps/api", "python", "-m", "logica.mcp.server"]
+    }
+  }
+}
+```
+
+Esto arranca el servidor en transporte `stdio` (el modo por defecto). Cada llamada a una tool pide el `access_token` como primer argumento — pégalo desde una sesión de login real (por ejemplo, la respuesta de `POST /auth/login` en la documentación OpenAPI en `/docs`).
+
+Para exponerlo por red en vez de como subproceso local:
+
+```bash
+uv run python -m logica.mcp.server --http   # transporte streamable-http
+```
+
+### Observabilidad: `/metrics` (Prometheus)
+
+Además del tracing de Langfuse (por llamada de IA), la API expone métricas Prometheus en `GET /metrics` (montado por `prometheus-fastapi-instrumentator`, sin autenticación — pensado para scraping interno, no para exponer públicamente sin un proxy que lo proteja). Incluye:
+
+- Métricas HTTP generales (latencia, tasa de error, conteo de requests por ruta) — automáticas.
+- Métricas propias del harness de IA (`ai/harness/metrics.py`): `ai_requests_total` (por tarea/modelo/si vino de caché), `ai_errors_total` (por tarea/tipo de error), `ai_request_latency_seconds`, `ai_tokens_total` (por tarea).
+
+Para un dashboard local rápido, apuntar un Prometheus local a `http://localhost:8000/metrics` (ajustar el puerto según `API_HOST_PORT`) — no forma parte de `docker-compose.yml` por defecto para mantener el stack liviano; Grafana/Prometheus quedan como algo que cualquier desplegador puede añadir apuntando a ese endpoint ya expuesto.
+
 ## Producción (tiers gratuitos)
 
 Definido en detalle en la Fase 10 del plan de implementación. Resumen:
