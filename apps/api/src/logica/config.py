@@ -44,6 +44,15 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
+    # Despliegue gratuito (Fase 10): el free tier de Render solo incluye web
+    # services, no background workers (esos son de pago) — en producción el
+    # worker de arq corre como una tarea asyncio dentro del mismo proceso de
+    # uvicorn en vez de como contenedor separado (ver workers/inprocess.py).
+    # En Docker Compose local el worker sigue siendo su propio contenedor
+    # (Dockerfile.worker), así que esto se queda en False salvo que se active
+    # explícitamente en el entorno de producción.
+    run_worker_in_process: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

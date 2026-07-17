@@ -1,5 +1,6 @@
+import asyncio
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 import structlog
 from arq import create_pool
@@ -27,6 +28,7 @@ from logica.modules.progress.router import router as progress_router
 from logica.modules.reports.router import router as reports_router
 from logica.modules.sandbox.router import router as sandbox_router
 from logica.modules.users.router import auth_router, users_router
+from logica.workers.inprocess import build_in_process_worker
 
 logger = structlog.get_logger()
 
@@ -39,10 +41,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # file itself — the arq worker (same Redis queue as the scheduled-topics
     # cron) does the actual work off the request path.
     app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+
+    # Despliegue gratuito (Fase 10, RUN_WORKER_IN_PROCESS): sin un segundo
+    # servicio de pago para el worker, el mismo proceso uvicorn también
+    # consume la cola de arq. En Docker Compose local esto se queda
+    # desactivado — el worker sigue siendo su propio contenedor.
+    in_process_worker = None
+    in_process_worker_task: asyncio.Task[None] | None = None
+    if settings.run_worker_in_process:
+        in_process_worker = build_in_process_worker()
+        in_process_worker_task = asyncio.create_task(in_process_worker.async_run())
+        logger.info("in_process_worker_started")
+
     logger.info("app_startup", env=settings.env)
     try:
         yield
     finally:
+        if in_process_worker_task is not None:
+            in_process_worker_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await in_process_worker_task
+        if in_process_worker is not None:
+            await in_process_worker.close()
         await app.state.redis.aclose()
         await app.state.arq_pool.aclose()
         await get_engine().dispose()

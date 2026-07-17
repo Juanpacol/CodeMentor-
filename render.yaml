@@ -1,0 +1,44 @@
+# Blueprint de Render (Fase 10, despliegue gratuito) — ver docs/despliegue.md
+# "Producción (tiers gratuitos)" para la guía paso a paso completa.
+#
+# Un solo web service gratuito corre la API y, como tarea asyncio dentro del
+# mismo proceso (RUN_WORKER_IN_PROCESS=true), también el worker de arq — el
+# free tier de Render no incluye background workers como servicio aparte.
+#
+# Render conecta este repo directamente (auto-deploy en cada push a main);
+# no hace falta un workflow de GitHub Actions para el CD.
+services:
+  - type: web
+    name: logica-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    healthCheckPath: /health
+    envVars:
+      - key: ENV
+        value: prod
+      - key: RUN_WORKER_IN_PROCESS
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      # El resto se configura a mano en el dashboard de Render (secretos y
+      # URLs de servicios externos gratuitos — Supabase, Upstash, Vercel,
+      # Langfuse Cloud, Groq/Gemini). Ver docs/despliegue.md.
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LANGFUSE_PUBLIC_KEY
+        sync: false
+      - key: LANGFUSE_SECRET_KEY
+        sync: false
+      - key: LANGFUSE_HOST
+        value: https://cloud.langfuse.com

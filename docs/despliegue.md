@@ -127,15 +127,36 @@ Requiere la API corriendo (`make up`) — `http://localhost:5173` ya está permi
 
 ## Producción (tiers gratuitos)
 
-Definido en detalle en la Fase 10 del plan de implementación. Resumen:
+| Componente | Proveedor gratuito | Notas |
+|---|---|---|
+| API + worker | Render (free tier, `render.yaml`) | Un solo web service; el worker de arq corre en el mismo proceso (`RUN_WORKER_IN_PROCESS=true`) — el free tier de Render no incluye background workers como servicio aparte (esos empiezan en $7/mes). Se duerme tras 15 min sin tráfico y tarda ~1 min en despertar en la siguiente petición. |
+| PostgreSQL + pgvector | Supabase (free tier) | Incluye la extensión `pgvector` ya habilitada. |
+| Redis | Upstash (free tier) | Compartido entre cachés (RE-02), colas de arq y el limiter de `slowapi`. |
+| Frontend | Vercel (free tier, `apps/web/vercel.json`) | El rewrite a `index.html` es necesario para que las rutas de `react-router-dom` no den 404 al refrescar. |
+| Observabilidad LLM | Langfuse Cloud (free tier) | Opcional — sin las keys, el tracing no-opera silenciosamente (§9.4). |
+| Sandbox / Ollama | Solo local | Los tiers gratuitos de hosting no soportan contenedores privilegiados de larga duración; la demo pública usa Groq/Gemini para IA y deja el sandbox documentado para ejecución local. |
 
-| Componente | Proveedor gratuito |
+> **Nota sobre Fly.io**: el plan original consideraba Fly.io como alternativa a Render, pero desde 2024 ya no ofrece un tier verdaderamente gratuito (pide tarjeta desde el registro; solo da un *free trial* de 2 horas de VM o 7 días). Render sí sigue sin pedir tarjeta para su free tier, así que es la opción usada aquí.
+
+### Pasos de configuración
+
+1. **Supabase** (Postgres): crear un proyecto gratuito → `Database > Connection string` (modo `Transaction pooler`, puerto 6543) → habilitar la extensión `vector` desde `Database > Extensions` → aplicar migraciones apuntando `DATABASE_URL` a esa cadena: `cd apps/api && DATABASE_URL=... uv run alembic upgrade head`.
+2. **Upstash** (Redis): crear una base gratuita → copiar la `UPSTASH_REDIS_URL` (formato `rediss://...`, con TLS) como `REDIS_URL`.
+3. **Render** (API + worker in-process): "New > Blueprint", apuntar a este repo (detecta `render.yaml` en la raíz automáticamente) → completar en el dashboard las env vars marcadas `sync: false` en el blueprint (`DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS` con la URL real de Vercel, y opcionalmente `GROQ_API_KEY`/`GEMINI_API_KEY`/`LANGFUSE_*`) → Render hace auto-deploy en cada push a `main` sin necesidad de un workflow de GitHub Actions.
+4. **Vercel** (frontend): "Add New > Project", importar este repo con *root directory* `apps/web` → variable de entorno `VITE_API_URL` apuntando a la URL pública de Render → auto-deploy en cada push a `main`, igual que Render.
+5. **Langfuse Cloud** (opcional): crear proyecto gratuito → `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` en Render, `LANGFUSE_HOST=https://cloud.langfuse.com`.
+
+### Variables de entorno requeridas en producción (Render)
+
+| Variable | Valor |
 |---|---|
-| API + worker | Fly.io o Render (free tier) |
-| PostgreSQL + pgvector | Supabase (free tier) |
-| Redis | Upstash (free tier) |
-| Frontend | Vercel (free tier) |
-| Observabilidad LLM | Langfuse Cloud (free tier) |
-| Sandbox / Ollama | Solo local — los tiers gratuitos de hosting no soportan contenedores privilegiados de larga duración; la demo pública usa Groq/Gemini para IA y deja el sandbox documentado para ejecución local. |
+| `ENV` | `prod` (activa rate limiting, HSTS y el worker in-process — ver "Hardening" arriba) |
+| `RUN_WORKER_IN_PROCESS` | `true` |
+| `DATABASE_URL` | cadena de conexión de Supabase |
+| `REDIS_URL` | cadena de conexión de Upstash (`rediss://`) |
+| `JWT_SECRET` | generado automáticamente por Render (`generateValue: true` en el blueprint) |
+| `CORS_ORIGINS` | `["https://<tu-app>.vercel.app"]` |
+| `GROQ_API_KEY` / `GEMINI_API_KEY` | opcionales — sin ellas, el harness de IA responde 503 con degradación amable (§9.4) en vez de romper el resto de la app |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST` | opcionales |
 
-CI/CD: GitHub Actions ejecuta lint + tests + evals en cada PR; el despliegue a producción ocurre en merge a `main` (Fase 10).
+CI/CD: GitHub Actions (`ci.yml`) ejecuta lint + tests + evals + security en cada push/PR; Render y Vercel hacen el despliegue real por su propia integración nativa con GitHub al hacer merge a `main` — no hace falta un workflow de CD separado.

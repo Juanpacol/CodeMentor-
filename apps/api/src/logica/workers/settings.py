@@ -1,9 +1,11 @@
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 import structlog
 from arq.connections import RedisSettings
 from arq.cron import cron
+from arq.typing import WorkerCoroutine
 
 from logica.config import get_settings
 from logica.db import get_session_factory
@@ -44,7 +46,7 @@ async def generate_group_report_job(ctx: dict[str, Any], report_job_id: str) -> 
 
 # Task functions are registered here incrementally as each phase introduces
 # background jobs (reportes, rankings, ingesta RAG...).
-functions: list[object] = [ping, generate_group_report_job]
+functions: Sequence[WorkerCoroutine] = [ping, generate_group_report_job]
 
 # Runs every 5 minutes — frequent enough that a scheduled topic doesn't lag
 # far behind class time, cheap enough to not matter at this scale.
