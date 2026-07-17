@@ -129,7 +129,7 @@ export function TakeEvaluationPage() {
             <div className="mb-4 flex items-center gap-2">
               <h2 className="text-lg font-semibold text-ink">{current.title}</h2>
               <Tag>{EXERCISE_TYPE_LABELS[current.type]}</Tag>
-              <span className="ml-auto text-xs text-ink-muted">{current.points} pts</span>
+              <span className="ml-auto text-xs text-ink-secondary">{current.points} pts</span>
             </div>
             {(() => {
               const Renderer = exerciseRenderers[current.type]

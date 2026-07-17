@@ -37,6 +37,7 @@ function DynamicList({
             type="button"
             variant="ghost"
             size="sm"
+            aria-label={`Eliminar ${placeholder.toLowerCase()} ${i + 1}`}
             onClick={() => onChange(items.filter((_, idx) => idx !== i))}
           >
             ✕

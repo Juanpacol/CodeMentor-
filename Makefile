@@ -1,6 +1,7 @@
-.PHONY: help up up-ai up-sandbox down logs api-shell lint fmt typecheck test test-sandbox evals migrate migrate-test migration seed sandbox-install-python
+.PHONY: help up up-ai up-sandbox down logs api-shell lint fmt typecheck test test-sandbox evals migrate migrate-test migration seed sandbox-install-python web-install web-dev web-test e2e
 
 API_DIR := apps/api
+WEB_DIR := apps/web
 
 -include .env
 export
@@ -39,6 +40,10 @@ help:
 	@echo "make migrate-test  - aplicar migraciones alembic (DB de test)"
 	@echo "make migration m=\"mensaje\" - crear migración autogenerada"
 	@echo "make seed          - poblar datos demo"
+	@echo "make web-install   - instalar dependencias del frontend"
+	@echo "make web-dev       - levantar el frontend en modo desarrollo (puerto 5173)"
+	@echo "make web-test      - vitest del frontend"
+	@echo "make e2e           - Playwright (requiere make up + web-dev corriendo, o los levanta solo)"
 
 up:
 	docker compose up --build -d postgres redis api worker
@@ -96,3 +101,18 @@ migration:
 
 seed:
 	cd $(API_DIR) && DATABASE_URL="$(HOST_DATABASE_URL)" uv run python -m scripts.seed
+
+web-install:
+	cd $(WEB_DIR) && npm install --legacy-peer-deps
+
+web-dev:
+	cd $(WEB_DIR) && npm run dev
+
+web-test:
+	cd $(WEB_DIR) && npm run test -- --run
+
+# Requiere el stack de Docker arriba (make up) — Playwright levanta el
+# servidor de Vite por su cuenta si no está ya corriendo (ver
+# playwright.config.ts, reuseExistingServer).
+e2e:
+	cd $(WEB_DIR) && npm run e2e

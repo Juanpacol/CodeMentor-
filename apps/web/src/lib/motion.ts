@@ -30,21 +30,12 @@ export const springScale: Variants = {
   },
 }
 
-export const reducedVariants: Variants = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1 },
-  exit: { opacity: 0 },
-}
-
+/** Usado por hooks que animan por fuera de motion.* (como useTilt, que
+ * manipula `element.style.transform` directamente vía mousemove) — las
+ * animaciones de componentes motion.* ya respetan la preferencia del
+ * sistema automáticamente a través de `<MotionConfig reducedMotion="user">`
+ * en App.tsx, así que no necesitan consultar esto. */
 export function prefersReducedMotion(): boolean {
   if (typeof window === 'undefined') return false
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
-/** Devuelve las variantes normales o el fallback reducido según la
- * preferencia del sistema — se evalúa en cada render (barato) en vez de
- * suscribirse a un listener, ya que un cambio de preferencia en caliente no
- * necesita reactividad inmediata para este caso de uso. */
-export function useReducedVariants(variants: Variants): Variants {
-  return prefersReducedMotion() ? reducedVariants : variants
 }

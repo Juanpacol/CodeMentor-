@@ -60,7 +60,7 @@ export function MembersTab({ groupId }: { groupId: string }) {
         >
           {enroll.isPending ? 'Procesando...' : 'Cargar CSV de estudiantes'}
         </Button>
-        <span className="text-xs text-ink-muted">Columnas: email, full_name, student_code</span>
+        <span className="text-xs text-ink-secondary">Columnas: email, full_name, student_code</span>
       </div>
 
       {error && (

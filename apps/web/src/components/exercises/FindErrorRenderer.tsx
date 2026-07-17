@@ -40,7 +40,7 @@ export function FindErrorRenderer({
                 selected ? 'bg-primary/15 text-ink' : 'text-ink-secondary hover:bg-hover',
               )}
             >
-              <span className="w-6 shrink-0 text-right text-ink-muted">{lineNumber}</span>
+              <span className="w-6 shrink-0 text-right text-ink-secondary">{lineNumber}</span>
               <span className="whitespace-pre">{line}</span>
             </button>
           )

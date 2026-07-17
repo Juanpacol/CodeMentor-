@@ -75,6 +75,7 @@ export function AgentsTab({ groupId }: { groupId: string }) {
             <label className="relative inline-flex cursor-pointer items-center">
               <input
                 type="checkbox"
+                aria-label={`${info.label}: ${enabled ? 'habilitado' : 'deshabilitado'}`}
                 checked={enabled}
                 onChange={(e) => toggle.mutate({ agentName, enabled: e.target.checked })}
                 className="peer sr-only"

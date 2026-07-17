@@ -40,7 +40,7 @@ export function OrderLinesRenderer({
           </Reorder.Item>
         ))}
       </Reorder.Group>
-      <p className="mt-2 text-xs text-ink-muted">Arrastra las líneas para ordenarlas.</p>
+      <p className="mt-2 text-xs text-ink-secondary">Arrastra las líneas para ordenarlas.</p>
     </div>
   )
 }

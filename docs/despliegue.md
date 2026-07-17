@@ -105,6 +105,21 @@ La exportación a PDF depende de las mismas librerías de sistema de WeasyPrint 
 
 El temario de una institución (`GET /topics`, `GET /groups/{id}/curriculum`) se cachea en Redis con `cache-aside` (clave `topics:{institution_id}`, TTL 5 minutos) e invalidación explícita cuando un docente crea o edita un tema — el mismo patrón que ya usaba la tabla de posiciones de evaluaciones (Fase 3) para rankings. No requiere configuración adicional.
 
+## Frontend (Fase 9)
+
+SPA en React + TypeScript + Vite (`apps/web`) — modo nocturno único estilo Notion, Tailwind v4, TanStack Query, `motion` para animaciones. Ver `apps/web/README.md` para el detalle completo; resumen aquí:
+
+```bash
+make web-install   # o: cd apps/web && npm install --legacy-peer-deps
+make web-dev        # servidor de desarrollo en http://localhost:5173
+```
+
+Requiere la API corriendo (`make up`) — `http://localhost:5173` ya está permitido en CORS por defecto. El cliente TypeScript (`apps/web/src/lib/api/schema.d.ts`) se genera desde el OpenAPI real con `./scripts/gen_openapi_client.sh` y se commitea, así que el build del frontend no depende de tener la API levantada.
+
+**Tests**: `make web-test` (vitest, componentes/hooks) corre en CI en cada push (job `web`). `make e2e` (Playwright, 3 flujos contra el stack Docker real) es **local-only** — no corre en CI porque requeriría levantar todo el stack en Actions; se reevaluará en esta misma Fase 10 junto con el deploy.
+
+## Producción (tiers gratuitos)
+
 Definido en detalle en la Fase 10 del plan de implementación. Resumen:
 
 | Componente | Proveedor gratuito |

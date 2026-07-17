@@ -25,7 +25,7 @@ export function ArguedResponseRenderer({
         rows={6}
         placeholder="Escribe tu respuesta..."
       />
-      <p className="mt-1.5 text-right text-xs text-ink-muted">{text.length} caracteres</p>
+      <p className="mt-1.5 text-right text-xs text-ink-secondary">{text.length} caracteres</p>
       <Callout tone="info" className="mt-3">
         Esta respuesta la revisa y califica tu docente — no recibe una calificación automática.
       </Callout>
