@@ -80,7 +80,7 @@ async def generate_exercise_draft(
         raise NotFoundError("Lenguaje no encontrado")
 
     reference_context = await retrieve_context(
-        db, teacher.institution_id, f"{topic.name} {exercise_type.value}"
+        db, teacher.institution_id, f"{topic.name} {exercise_type.value}", topic_id=topic_id
     )
     existing = await list_exercises(db, teacher.institution_id, topic_id=topic_id)
     similar_exercises = "\n".join(f"- {e.title}" for e in existing[:5])

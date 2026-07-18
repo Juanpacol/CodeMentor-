@@ -16,6 +16,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 
 from logica.ai.agents.router import router as ai_agents_router
+from logica.ai.rag.router import router as rag_router
 from logica.config import get_settings
 from logica.core.errors import LogicaError
 from logica.core.rate_limit import limiter
@@ -166,6 +167,7 @@ def create_app() -> FastAPI:
     app.include_router(evaluations_router)
     app.include_router(sandbox_router)
     app.include_router(ai_agents_router)
+    app.include_router(rag_router)
     app.include_router(progress_router)
     app.include_router(reports_router)
     app.include_router(observability_router)

@@ -825,6 +825,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/rag/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Rag Documents */
+        get: operations["list_rag_documents_ai_rag_documents_get"];
+        put?: never;
+        /** Upload Rag Document */
+        post: operations["upload_rag_document_ai_rag_documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/rag/documents/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Rag Document */
+        delete: operations["delete_rag_document_ai_rag_documents__document_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/progress/me": {
         parameters: {
             query?: never;
@@ -1159,6 +1194,15 @@ export interface components {
         Body_enroll_csv_groups__group_id__enroll_csv_post: {
             /** File */
             file: string;
+        };
+        /** Body_upload_rag_document_ai_rag_documents_post */
+        Body_upload_rag_document_ai_rag_documents_post: {
+            /** File */
+            file: string;
+            /** Title */
+            title: string;
+            /** Topic Id */
+            topic_id?: string | null;
         };
         /** CreatedAccount */
         CreatedAccount: {
@@ -1804,6 +1848,27 @@ export interface components {
             needs_manual_review: boolean;
             /** Manual Score */
             manual_score: number | null;
+        };
+        /** RagDocumentOut */
+        RagDocumentOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Source Type */
+            source_type: string;
+            /** Topic Id */
+            topic_id: string | null;
+            /** Chunk Count */
+            chunk_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** RankingEntryOut */
         RankingEntryOut: {
@@ -3784,6 +3849,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PendingApprovalsOut"];
+                };
+            };
+        };
+    };
+    list_rag_documents_ai_rag_documents_get: {
+        parameters: {
+            query?: {
+                topic_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagDocumentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_rag_document_ai_rag_documents_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_rag_document_ai_rag_documents_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_rag_document_ai_rag_documents__document_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

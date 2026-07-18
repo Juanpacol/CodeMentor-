@@ -12,9 +12,13 @@ from logica.ai.rag.retriever import retrieve
 
 
 async def retrieve_context(
-    db: AsyncSession, institution_id: uuid.UUID, query: str, top_k: int = 3
+    db: AsyncSession,
+    institution_id: uuid.UUID,
+    query: str,
+    top_k: int = 3,
+    topic_id: uuid.UUID | None = None,
 ) -> str:
-    hits = await retrieve(db, institution_id, query, top_k=top_k)
+    hits = await retrieve(db, institution_id, query, top_k=top_k, topic_id=topic_id)
     if not hits:
         return ""
 

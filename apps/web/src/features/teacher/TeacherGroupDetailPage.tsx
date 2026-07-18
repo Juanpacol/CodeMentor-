@@ -9,6 +9,7 @@ import { AgentsTab } from './AgentsTab'
 import { AnalyticsTab } from './AnalyticsTab'
 import { CurriculumTab } from './CurriculumTab'
 import { GradebookTab } from './GradebookTab'
+import { MaterialsTab } from './MaterialsTab'
 import { MembersTab } from './MembersTab'
 import { ReportsTab } from './ReportsTab'
 
@@ -38,6 +39,7 @@ export function TeacherGroupDetailPage() {
           { value: 'agentes', label: 'Agentes IA' },
           { value: 'analitica', label: 'Analítica' },
           { value: 'calificaciones', label: 'Calificaciones' },
+          { value: 'material', label: 'Material de apoyo' },
           { value: 'reportes', label: 'Reportes' },
         ]}
       />
@@ -47,6 +49,7 @@ export function TeacherGroupDetailPage() {
       {tab === 'agentes' && <AgentsTab groupId={groupId} />}
       {tab === 'analitica' && <AnalyticsTab groupId={groupId} />}
       {tab === 'calificaciones' && <GradebookTab groupId={groupId} />}
+      {tab === 'material' && <MaterialsTab groupId={groupId} />}
       {tab === 'reportes' && <ReportsTab groupId={groupId} />}
     </div>
   )

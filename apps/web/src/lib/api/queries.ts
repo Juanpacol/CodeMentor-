@@ -41,4 +41,5 @@ export const qk = {
     audit: (filters: { action?: string; page: number }) =>
       ['observability', 'audit', filters.action ?? '', filters.page] as const,
   },
+  ragDocuments: (topicId?: string) => ['rag-documents', topicId ?? 'all'] as const,
 }

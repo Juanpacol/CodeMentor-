@@ -64,7 +64,10 @@ async def ask_hint(
             topic_name = topic.name
 
     reference_context = await retrieve_context(
-        db, student.institution_id, exercise.content.get("statement", exercise.title)
+        db,
+        student.institution_id,
+        exercise.content.get("statement", exercise.title),
+        topic_id=topic_ids[0] if topic_ids else None,
     )
 
     await create_tutor_message(

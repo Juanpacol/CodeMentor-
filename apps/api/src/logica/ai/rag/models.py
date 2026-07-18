@@ -18,6 +18,14 @@ class RagDocument(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
 
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     source_type: Mapped[str] = mapped_column(String(50), nullable=False, default="teacher_material")
+    # Fase 14: alcance opcional por tema — nullable porque material general
+    # de la institución (sin tema específico) sigue siendo válido. La
+    # recuperación (retriever.py) incluye tanto los documentos del tema como
+    # los que no tienen tema asignado, nunca solo los del tema (para no
+    # dejar sin resultados a un tema que aún no tiene material propio).
+    topic_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("topics.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
 
 class RagChunk(UUIDPkMixin, TimestampMixin, Base):

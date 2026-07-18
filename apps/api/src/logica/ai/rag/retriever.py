@@ -1,7 +1,8 @@
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.ai.rag.embedder import embed_query
@@ -23,8 +24,22 @@ class RetrievedChunk:
     score: float
 
 
+def _scope_to_topic(stmt: Select[Any], topic_id: uuid.UUID | None) -> Select[Any]:
+    """Fase 14: cuando se pasa un tema, incluye tanto los documentos de ESE
+    tema como los que no tienen tema asignado (material general) — nunca
+    solo los del tema, para no dejar sin resultados a un tema que aún no
+    tiene material propio ingerido."""
+    if topic_id is None:
+        return stmt
+    return stmt.where((RagDocument.topic_id == topic_id) | (RagDocument.topic_id.is_(None)))
+
+
 async def _vector_candidates(
-    db: AsyncSession, institution_id: uuid.UUID, query_vector: list[float], limit: int
+    db: AsyncSession,
+    institution_id: uuid.UUID,
+    query_vector: list[float],
+    limit: int,
+    topic_id: uuid.UUID | None,
 ) -> list[tuple[uuid.UUID, uuid.UUID, str, str]]:
     stmt = (
         select(RagChunk.id, RagChunk.document_id, RagDocument.title, RagChunk.content)
@@ -33,12 +48,17 @@ async def _vector_candidates(
         .order_by(RagChunk.embedding.cosine_distance(query_vector))
         .limit(limit)
     )
+    stmt = _scope_to_topic(stmt, topic_id)
     result = await db.execute(stmt)
     return [tuple(row) for row in result.all()]
 
 
 async def _fulltext_candidates(
-    db: AsyncSession, institution_id: uuid.UUID, query_text: str, limit: int
+    db: AsyncSession,
+    institution_id: uuid.UUID,
+    query_text: str,
+    limit: int,
+    topic_id: uuid.UUID | None,
 ) -> list[tuple[uuid.UUID, uuid.UUID, str, str]]:
     tsquery = func.plainto_tsquery("spanish", query_text)
     tsvector = func.to_tsvector("spanish", RagChunk.content)
@@ -49,21 +69,30 @@ async def _fulltext_candidates(
         .order_by(func.ts_rank(tsvector, tsquery).desc())
         .limit(limit)
     )
+    stmt = _scope_to_topic(stmt, topic_id)
     result = await db.execute(stmt)
     return [tuple(row) for row in result.all()]
 
 
 async def retrieve(
-    db: AsyncSession, institution_id: uuid.UUID, query: str, top_k: int = 5
+    db: AsyncSession,
+    institution_id: uuid.UUID,
+    query: str,
+    top_k: int = 5,
+    topic_id: uuid.UUID | None = None,
 ) -> list[RetrievedChunk]:
     """Hybrid retrieval: vector similarity (semantic match) fused with
     Postgres full-text search (exact keyword match — catches PSeInt keyword
-    lookups like "Mientras" that a small embedding model may under-weigh)."""
+    lookups like "Mientras" that a small embedding model may under-weigh).
+    `topic_id` (Fase 14) narrows a la vez que sigue incluyendo material sin
+    tema asignado — ver `_scope_to_topic`."""
     query_vector = embed_query(query)
     candidate_limit = top_k * 4
 
-    vector_hits = await _vector_candidates(db, institution_id, query_vector, candidate_limit)
-    fulltext_hits = await _fulltext_candidates(db, institution_id, query, candidate_limit)
+    vector_hits = await _vector_candidates(
+        db, institution_id, query_vector, candidate_limit, topic_id
+    )
+    fulltext_hits = await _fulltext_candidates(db, institution_id, query, candidate_limit, topic_id)
 
     rrf_scores: dict[uuid.UUID, float] = {}
     chunk_data: dict[uuid.UUID, tuple[uuid.UUID, str, str]] = {}
