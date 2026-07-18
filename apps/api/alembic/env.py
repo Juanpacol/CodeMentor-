@@ -23,6 +23,7 @@ from logica.modules.evaluations.models import (  # noqa: F401
 )
 from logica.modules.exercises.models import Exercise, TopicExercise  # noqa: F401
 from logica.modules.groups.models import Group, GroupMembership  # noqa: F401
+from logica.modules.observability.models import ErrorLog  # noqa: F401
 from logica.modules.progress.models import (  # noqa: F401
     AcademicPeriod,
     Badge,

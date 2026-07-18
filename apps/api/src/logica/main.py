@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 
@@ -24,6 +25,9 @@ from logica.modules.content.router import router as content_router
 from logica.modules.evaluations.router import router as evaluations_router
 from logica.modules.exercises.router import router as exercises_router
 from logica.modules.groups.router import router as groups_router
+from logica.modules.observability.models import truncate_message, truncate_stacktrace
+from logica.modules.observability.router import router as observability_router
+from logica.modules.observability.service import best_effort_actor
 from logica.modules.progress.router import router as progress_router
 from logica.modules.reports.router import router as reports_router
 from logica.modules.sandbox.router import router as sandbox_router
@@ -111,6 +115,33 @@ def create_app() -> FastAPI:
     async def handle_logica_error(request: Request, exc: LogicaError) -> JSONResponse:
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
+    # Fase 13: los LogicaError arriba son errores de dominio esperados y ya
+    # tienen su propio manejador — FastAPI despacha por especificidad de
+    # clase, así que este handler más genérico solo atrapa lo que de verdad
+    # es un bug (excepciones no controladas / 500 reales), nunca les pisa el
+    # handler específico. Nunca se filtra el texto crudo de la excepción al
+    # cliente; el incidente se persiste vía arq (nunca en la misma request
+    # que falló — si la causa fue una sesión de DB rota, escribir ahí
+    # fallaría justo cuando más importa).
+    @app.exception_handler(Exception)
+    async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+        user_id, institution_id = best_effort_actor(request)
+        payload = {
+            "institution_id": str(institution_id) if institution_id else None,
+            "user_id": str(user_id) if user_id else None,
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": 500,
+            "exception_type": type(exc).__name__,
+            "message": truncate_message(str(exc)),
+            "stacktrace": truncate_stacktrace(traceback.format_exc()),
+        }
+        try:
+            await request.app.state.arq_pool.enqueue_job("record_error_log_job", payload)
+        except Exception:
+            logger.exception("error_log_enqueue_failed")
+        return JSONResponse(status_code=500, content={"detail": "Error interno del servidor."})
+
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:
         return {"status": "ok"}
@@ -137,6 +168,7 @@ def create_app() -> FastAPI:
     app.include_router(ai_agents_router)
     app.include_router(progress_router)
     app.include_router(reports_router)
+    app.include_router(observability_router)
 
     return app
 

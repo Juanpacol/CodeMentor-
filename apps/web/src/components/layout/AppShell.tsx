@@ -22,6 +22,7 @@ const teacherNav: NavItem[] = [
   { to: '/app/docente/ejercicios', label: 'Banco de ejercicios' },
   { to: '/app/docente/evaluaciones/nueva', label: 'Nueva evaluación' },
   { to: '/app/docente/bandeja', label: 'Bandeja de aprobaciones' },
+  { to: '/app/docente/actividad', label: 'Actividad y errores' },
   { to: '/app/admin/periodos', label: 'Periodos académicos' },
 ]
 

@@ -14,6 +14,7 @@ import { PracticePage } from './features/student/PracticePage'
 import { ProgressPage } from './features/student/ProgressPage'
 import { StudentDashboardPage } from './features/student/StudentDashboardPage'
 import { TakeEvaluationPage } from './features/student/TakeEvaluationPage'
+import { ActivityLogPage } from './features/teacher/ActivityLogPage'
 import { ApprovalsInboxPage } from './features/teacher/ApprovalsInboxPage'
 import { EvaluationBuilderPage } from './features/teacher/EvaluationBuilderPage'
 import { EvaluationManagePage } from './features/teacher/EvaluationManagePage'
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
                 element: <EvaluationManagePage />,
               },
               { path: '/app/docente/bandeja', element: <ApprovalsInboxPage /> },
+              { path: '/app/docente/actividad', element: <ActivityLogPage /> },
               { path: '/app/admin/periodos', element: <AcademicPeriodsPage /> },
             ],
           },

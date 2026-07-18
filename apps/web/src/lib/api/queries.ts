@@ -35,4 +35,10 @@ export const qk = {
     gradebook: (groupId: string) => ['reports', 'gradebook', groupId] as const,
   },
   academicPeriods: ['academic-periods'] as const,
+  observability: {
+    errors: (filters: { statusCode?: number; path?: string; page: number }) =>
+      ['observability', 'errors', filters.statusCode ?? 'all', filters.path ?? '', filters.page] as const,
+    audit: (filters: { action?: string; page: number }) =>
+      ['observability', 'audit', filters.action ?? '', filters.page] as const,
+  },
 }

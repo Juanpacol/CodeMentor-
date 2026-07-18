@@ -11,6 +11,7 @@ from logica.db import get_engine, get_session_factory
 from logica.modules.users.models import Institution, User
 
 _TABLES = (
+    "error_logs",
     "audit_logs",
     "ai_interactions",
     "rag_chunks",
