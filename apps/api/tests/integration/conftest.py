@@ -21,6 +21,9 @@ _TABLES = (
     "evaluation_exercises",
     "evaluations",
     "practice_submissions",
+    # Fase 17 — antes que `guides`/`topics`: `rubric_items` los referencia.
+    "rubric_items",
+    "rubric_runs",
     # Fase 16 — hijo primero: `guides` referencia `guides_folders` y
     # `guide_templates`. Listadas explícitamente aunque el CASCADE de más abajo
     # (vía `groups`/`users`) también las alcanzaría: un TRUNCATE implícito deja

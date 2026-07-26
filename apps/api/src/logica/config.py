@@ -54,6 +54,15 @@ class Settings(BaseSettings):
     # relativa entre agentes, no para un corte duro.
     ai_monthly_cost_limit_usd: float = 5.0
 
+    # Fase 17: adquisición de material de referencia para las rúbricas. Ninguna
+    # de estas requiere API key — la fuente es la action API de Wikimedia, que es
+    # abierta. `content_acquisition_enabled=False` deja el pipeline de rúbricas
+    # funcionando sin red: las guías se generan igual, solo que fundamentadas en
+    # el material que ya haya subido el docente.
+    content_acquisition_enabled: bool = True
+    content_acquisition_timeout_seconds: float = 10.0
+    content_acquisition_max_sources_per_topic: int = 3
+
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
     # Despliegue gratuito (Fase 10): el free tier de Render solo incluye web

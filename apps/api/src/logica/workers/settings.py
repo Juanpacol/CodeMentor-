@@ -11,6 +11,7 @@ from redis.asyncio import Redis
 from sqlalchemy.exc import SQLAlchemyError
 
 from logica.ai.agents.config_service import is_agent_enabled
+from logica.ai.agents.exercise_generator import generate_exercises_for_guide
 from logica.ai.agents.guide_writer import write_guide
 from logica.ai.agents.models import AgentName
 from logica.config import get_settings
@@ -18,10 +19,13 @@ from logica.db import get_session_factory
 from logica.modules.content.models import TopicGroupStateValue
 from logica.modules.content.repository import get_topic, list_topic_group_states_for_group
 from logica.modules.content.service import enable_scheduled_topics
+from logica.modules.exercises.models import ExerciseType
 from logica.modules.guides import repository as guides_repository
 from logica.modules.guides.models import Guide, GuideOrigin, GuideStatus
 from logica.modules.observability import repository as observability_repository
 from logica.modules.reports.service import generate_group_report
+from logica.modules.rubrics.runner import run_rubric
+from logica.modules.users.models import User
 
 logger = structlog.get_logger()
 
@@ -81,6 +85,45 @@ async def generate_guide_job(ctx: dict[str, Any], guide_id: str) -> None:
     finally:
         await redis.aclose()
     logger.info("guide_job_finished", guide_id=guide_id)
+
+
+async def generate_exercises_for_guide_job(
+    ctx: dict[str, Any], guide_id: str, exercise_types: list[str]
+) -> int:
+    """Fase 17: genera un borrador de ejercicio por cada tipo pedido, a partir de
+    una guía ya redactada. Encolado por `POST /ai/guides/{id}/exercises` y por el
+    orquestador de rúbricas.
+
+    El docente al que se le cobra el presupuesto y que queda en la auditoría es
+    el que creó la guía (`Guide.created_by_id`) — en el worker no hay usuario de
+    request, misma decisión que en `guide_writer.write_guide`."""
+    session_factory = get_session_factory()
+    redis = Redis.from_url(get_settings().redis_url, decode_responses=True)
+    created = 0
+    try:
+        async with session_factory() as db:
+            guide = await db.get(Guide, uuid.UUID(guide_id))
+            if guide is None:
+                logger.warning("exercises_for_guide_missing", guide_id=guide_id)
+                return 0
+            teacher = await db.get(User, guide.created_by_id)
+            if teacher is None:
+                logger.warning("exercises_for_guide_teacher_missing", guide_id=guide_id)
+                return 0
+
+            exercises = await generate_exercises_for_guide(
+                db,
+                redis,
+                teacher,
+                guide_id=guide.id,
+                exercise_types=[ExerciseType(value) for value in exercise_types],
+            )
+            created = len(exercises)
+            await db.commit()
+    finally:
+        await redis.aclose()
+    logger.info("exercises_for_guide_job_finished", guide_id=guide_id, created=created)
+    return created
 
 
 async def generate_guides_for_enabled_topics_job(ctx: dict[str, Any]) -> int:
@@ -172,6 +215,24 @@ async def generate_guides_for_enabled_topics_job(ctx: dict[str, Any]) -> int:
     return len(created)
 
 
+async def run_rubric_job(ctx: dict[str, Any], run_id: str) -> None:
+    """Fase 17: ejecuta una corrida de rúbrica completa (temas → material → guías
+    → ejercicios). Encolado por `POST /groups/{id}/rubric-runs`.
+
+    Es el job más largo del sistema —minutos— y por eso el orquestador commitea
+    en cada transición de etapa: la pantalla del docente hace polling sobre esas
+    filas. La sesión vive toda la corrida, pero cada tema es su propia
+    transacción, así que ninguna se queda abierta más que un tema."""
+    session_factory = get_session_factory()
+    redis = Redis.from_url(get_settings().redis_url, decode_responses=True)
+    try:
+        async with session_factory() as db:
+            await run_rubric(db, redis, run_id=uuid.UUID(run_id))
+    finally:
+        await redis.aclose()
+    logger.info("rubric_job_finished", run_id=run_id)
+
+
 async def record_error_log_job(ctx: dict[str, Any], payload: dict[str, Any]) -> None:
     """Fase 13: persiste un incidente técnico capturado por el manejador
     global de excepciones en `main.py`. Corre en el worker (nunca en la
@@ -222,6 +283,8 @@ functions: Sequence[WorkerCoroutine] = [
     generate_group_report_job,
     generate_guide_job,
     generate_guides_for_enabled_topics_job,
+    generate_exercises_for_guide_job,
+    run_rubric_job,
     record_error_log_job,
     prune_observability_logs_job,
 ]

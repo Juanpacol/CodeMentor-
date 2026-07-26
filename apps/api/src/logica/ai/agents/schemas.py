@@ -45,6 +45,13 @@ class ExerciseGenerateRequest(BaseModel):
     exercise_type: ExerciseType
 
 
+class GuideExercisesRequest(BaseModel):
+    # Tope de 6: son 6 llamadas al modelo en un mismo lote, y el free tier de
+    # Groq limita peticiones por minuto. Sin tope, pedir los 8 tipos de una guía
+    # tras otra agota la cuota y todo cae al respaldo de Gemini.
+    exercise_types: list[ExerciseType] = Field(min_length=1, max_length=6)
+
+
 class GradingSuggestionRequest(BaseModel):
     evaluation_id: uuid.UUID
     answer_id: uuid.UUID

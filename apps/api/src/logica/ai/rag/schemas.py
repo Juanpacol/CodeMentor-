@@ -9,5 +9,6 @@ class RagDocumentOut(BaseModel):
     title: str
     source_type: str
     topic_id: uuid.UUID | None
+    source_url: str | None = None
     chunk_count: int
     created_at: datetime

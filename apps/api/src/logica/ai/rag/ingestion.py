@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy import delete, select
@@ -21,6 +22,7 @@ async def ingest_document(
     text: str,
     source_type: str = "teacher_material",
     topic_id: uuid.UUID | None = None,
+    source_url: str | None = None,
     chunk_max_chars: int = 800,
     chunk_overlap_chars: int = 100,
 ) -> RagDocument:
@@ -41,14 +43,26 @@ async def ingest_document(
     )
     document = existing.scalar_one_or_none()
     is_reingest = document is not None
+    # Fase 17: `source_url` solo se pisa cuando la reingesta trae uno, para que
+    # volver a subir a mano un documento que antes vino de la web no borre en
+    # silencio su atribución.
+    fetched_at = datetime.now(UTC) if source_url else None
     if document is not None:
         document.source_type = source_type
         document.topic_id = topic_id
+        if source_url:
+            document.source_url = source_url
+            document.fetched_at = fetched_at
         await db.execute(delete(RagChunk).where(RagChunk.document_id == document.id))
         logger.info("rag_document_reingest_detected", document_id=str(document.id), title=title)
     else:
         document = RagDocument(
-            institution_id=institution_id, title=title, source_type=source_type, topic_id=topic_id
+            institution_id=institution_id,
+            title=title,
+            source_type=source_type,
+            topic_id=topic_id,
+            source_url=source_url,
+            fetched_at=fetched_at,
         )
         db.add(document)
 

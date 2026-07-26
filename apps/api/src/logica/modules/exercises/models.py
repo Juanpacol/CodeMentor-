@@ -66,6 +66,14 @@ class Exercise(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
         default=ExerciseStatus.published,
     )
     version: Mapped[int] = mapped_column(default=1, nullable=False)
+    # Fase 17: de qué guía salió este ejercicio. NULL para el banco general.
+    # `topic_exercises` sigue siendo el eje de organización por tema — esta FK
+    # solo desambigua lo que ese eje no puede: un tema con dos guías.
+    # SET NULL y no CASCADE porque un ejercicio ya adjunto a una evaluación no
+    # puede desaparecer porque se borró la guía que lo originó.
+    guide_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("guides.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
 
 class TopicExercise(UUIDPkMixin, TimestampMixin, Base):

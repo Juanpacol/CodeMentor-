@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +30,12 @@ class RagDocument(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
     topic_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("topics.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Fase 17: procedencia del material traído de la web por `acquire.py`. NULL
+    # para lo que subió un docente a mano. No es metadato decorativo: la licencia
+    # CC BY-SA de Wikimedia exige atribución, y sin la URL el docente no tiene
+    # cómo verificar de dónde salió lo que el modelo usó para redactar la guía.
+    source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class RagChunk(UUIDPkMixin, TimestampMixin, Base):

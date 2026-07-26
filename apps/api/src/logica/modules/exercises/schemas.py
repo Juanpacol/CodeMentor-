@@ -30,5 +30,6 @@ class ExerciseOut(BaseModel):
     origin: ExerciseOrigin
     status: ExerciseStatus
     version: int
+    guide_id: uuid.UUID | None = None
 
     model_config = {"from_attributes": True}

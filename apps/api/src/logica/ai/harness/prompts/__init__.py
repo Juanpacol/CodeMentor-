@@ -30,7 +30,10 @@ ACTIVE_PROMPT_VERSIONS: dict[str, int] = {
     "progressive_hint": 1,
     "pedagogical_feedback": 1,
     "summarize_group": 1,
-    "exercise_generation": 1,
+    # v2 (Fase 17): agrega `guide_excerpt` para que un ejercicio generado a
+    # partir de una guía evalúe lo que esa guía explica y no el tema en general.
+    # La v1 sigue en el repo y sigue siendo ejecutable por las evals.
+    "exercise_generation": 2,
     "grading_suggestion": 1,
     "code_integrity": 1,
     "guide_generation": 1,
