@@ -107,7 +107,7 @@ El temario de una institución (`GET /topics`, `GET /groups/{id}/curriculum`) se
 
 ## Frontend (Fase 9)
 
-SPA en React + TypeScript + Vite (`apps/web`) — modo nocturno único estilo Notion, Tailwind v4, TanStack Query, `motion` para animaciones. Ver `apps/web/README.md` para el detalle completo; resumen aquí:
+SPA en React + TypeScript + Vite (`apps/web`) — paleta estilo Notion con modo claro/oscuro (toggle manual que respeta `prefers-color-scheme` hasta que el usuario elige, ver `src/lib/theme.ts`), Tailwind v4, TanStack Query, `motion` para animaciones. Ver `apps/web/README.md` para el detalle completo; resumen aquí:
 
 ```bash
 make web-install   # o: cd apps/web && npm install --legacy-peer-deps
@@ -124,6 +124,16 @@ Requiere la API corriendo (`make up`) — `http://localhost:5173` ya está permi
 - **Límites de tasa** (`core/rate_limit.py`, vía `slowapi` + el mismo Redis del resto de la app): `POST /auth/register` (10/hora), `/auth/login` (10/min), `/auth/refresh` (60/min), `/auth/password-reset/request` (5/hora) y `/password-reset/confirm` (10/hora) por IP. También solo se activan con `ENV=prod` — en dev/test decenas de flujos y tests golpean `/auth/login` repetidamente y un límite real produciría `429` sin relación con lo que se está probando. `ENV=prod` es, por lo tanto, una variable requerida en el despliegue real (ver tabla de abajo).
 - **CORS**: `CORS_ORIGINS` sigue siendo una lista explícita (por defecto solo `http://localhost:5173`); en producción debe incluir la URL real del frontend desplegado (Vercel).
 - **Escaneo estático** (job `security` en CI, `apps/api`): `bandit -r src` (análisis AST de patrones inseguros) y `pip-audit` (CVEs conocidas en dependencias) corren en cada push/PR, además de los `select = ["E","F","I","UP","B","SIM","ASYNC","S"]` de ruff que ya cubren buena parte de OWASP en cada commit.
+- **CSP explícita del frontend** (`apps/web/vercel.json`, cabeceras servidas por Vercel en cada respuesta):
+  ```
+  default-src 'self'; script-src 'self' 'sha256-<hash>'; style-src 'self';
+  img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.onrender.com;
+  base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
+  ```
+  - **Sin `unsafe-inline` ni `unsafe-eval`.** El único script inline (el que fija `data-theme` antes del primer pintado, en `index.html`, necesario para que el toggle de modo claro/oscuro no parpadee) se permite por **hash SHA-256**, no por `unsafe-inline` — así ningún *otro* script inyectado (XSS) podría ejecutarse aunque lograra insertarse en el DOM. `style-src 'self'` (sin `unsafe-inline`) también es seguro: React y `motion` escriben estilos vía la CSSOM (`element.style.prop = valor`), que el navegador **no** trata como "estilo inline" a efectos de CSP — solo restringe atributos `style="..."` literales en el marcado, que esta app no usa. Verificado en la práctica sirviendo el `dist/` real con esta cabecera y navegando las 4 páginas públicas + el toggle de tema sin ninguna violación en consola.
+  - **Test anti-deriva** (`apps/web/src/lib/csp.test.ts`, corre en `make web-test`): recalcula el hash del script inline de `index.html` y falla si no coincide con el de `vercel.json` — sin esto, editar el script sin recalcular el hash rompería el toggle de tema en producción de forma silenciosa (el navegador bloquearía el script, `data-theme` nunca se fijaría antes de pintar).
+  - **`connect-src` usa un comodín** (`https://*.onrender.com`) porque la URL real del servicio Render es específica de cada despliegue (`VITE_API_URL`, ver tabla de variables más abajo) y `vercel.json` no puede interpolar variables de entorno en el valor de una cabecera. Si se usa un dominio propio para la API en vez del subdominio `.onrender.com` por defecto, hay que actualizar `connect-src` a mano.
+  - **Alcance deliberado**: el sandbox de ejecución de código (Piston) corre **del lado del servidor** (`apps/api`, ver ADR-002) — no hay ejecución de código no confiable en el navegador, así que esta CSP no necesita `worker-src` ni excepciones para `eval`.
 
 ## Producción (tiers gratuitos)
 
@@ -132,7 +142,7 @@ Requiere la API corriendo (`make up`) — `http://localhost:5173` ya está permi
 | API + worker | Render (free tier, `render.yaml`) | Un solo web service; el worker de arq corre en el mismo proceso (`RUN_WORKER_IN_PROCESS=true`) — el free tier de Render no incluye background workers como servicio aparte (esos empiezan en $7/mes). Se duerme tras 15 min sin tráfico y tarda ~1 min en despertar en la siguiente petición. |
 | PostgreSQL + pgvector | Supabase (free tier) | Incluye la extensión `pgvector` ya habilitada. |
 | Redis | Upstash (free tier) | Compartido entre cachés (RE-02), colas de arq y el limiter de `slowapi`. |
-| Frontend | Vercel (free tier, `apps/web/vercel.json`) | El rewrite a `index.html` es necesario para que las rutas de `react-router-dom` no den 404 al refrescar. |
+| Frontend | Vercel (free tier, `apps/web/vercel.json`) | El rewrite a `index.html` es necesario para que las rutas de `react-router` no den 404 al refrescar. |
 | Observabilidad LLM | Langfuse Cloud (free tier) | Opcional — sin las keys, el tracing no-opera silenciosamente (§9.4). |
 | Sandbox / Ollama | Solo local | Los tiers gratuitos de hosting no soportan contenedores privilegiados de larga duración; la demo pública usa Groq/Gemini para IA y deja el sandbox documentado para ejecución local. |
 
@@ -160,6 +170,57 @@ Requiere la API corriendo (`make up`) — `http://localhost:5173` ya está permi
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST` | opcionales |
 
 CI/CD: GitHub Actions (`ci.yml`) ejecuta lint + tests + evals + security en cada push/PR; Render y Vercel hacen el despliegue real por su propia integración nativa con GitHub al hacer merge a `main` — no hace falta un workflow de CD separado.
+
+### Runbook: verificación post-despliegue y límites de los tiers gratuitos (ítems 21/22)
+
+Esta sección es solo un checklist manual — secretos y dashboards de proveedores externos que
+solo el desplegador puede ver, no hay nada de esto que un workflow de CI pueda comprobar.
+
+**1. Confirmar que `DATABASE_URL` usa el Transaction pooler (puerto 6543), no la conexión
+directa (puerto 5432).** Supabase muestra ambas cadenas en `Database > Connection string`; es
+fácil copiar la directa por error. El pooler (PgBouncer en modo *transaction*) es el que
+soporta el volumen de conexiones concurrentes de un free tier — la conexión directa de
+Supabase free tier tiene un límite bajo de conexiones simultáneas y se agota rápido con
+varios workers/requests.
+  - **Caveat real de este modo, ya corregido en `db.py`**: PgBouncer en modo transacción
+    reasigna la conexión de backend en cada transacción, así que el cache de sentencias
+    preparadas de asyncpg (activo por defecto, `statement_cache_size=100`) rompe con
+    `prepared statement "..." does not exist` en cuanto la segunda transacción cae en un
+    backend distinto al que la preparó. `create_engine()` pasa
+    `connect_args={"statement_cache_size": 0}` para desactivarlo — si se toca ese archivo,
+    verificar que ese kwarg sobrevive.
+  - Para confirmar en un despliegue real: `echo $DATABASE_URL` en el dashboard de Render debe
+    terminar en `:6543/postgres`, no `:5432/postgres`.
+
+**2. Umbrales a vigilar de Upstash (Redis).** El free tier limita **comandos por día** (no
+memoria) — el dashboard de Upstash muestra el conteo corriente contra el límite del plan. Este
+proyecto usa Redis para tres cosas que consumen ese cupo de forma distinta: caché de temario
+(`topics:{institution_id}`, TTL 5 min — RE-02), ranking en vivo de evaluaciones
+(`ranking:{evaluation_id}`, sin TTL hoy — ver ítem 17 y `tests/load/evaluation_flow.js`, que
+mide exactamente esta ruta), y las colas de `arq`. Si el conteo diario se acerca al límite,
+el primer sospechoso es el polling de ranking desde el frontend (cada estudiante presentando
+una evaluación rankeada hace un `GET .../ranking` repetido) antes que el caché de temario.
+
+**3. Umbrales a vigilar de Supabase (Postgres).** Free tier: **~500MB** de almacenamiento y
+**pausa automática por inactividad** (~1 semana sin actividad alguna) — un proyecto pausado
+necesita reactivarse a mano desde el dashboard antes de que Render pueda volver a conectarse,
+así que un período largo sin uso (vacaciones escolares) es el momento de revisar esto, no
+descubrirlo cuando un docente reporta que la app no responde.
+  - **La palanca de retención ya existe**: `prune_old_logs()`
+    (`modules/observability/repository.py`) borra `ErrorLog` más viejo que
+    `ERROR_LOG_RETENTION_DAYS` (30 días) y `AuditLog` más viejo que
+    `AUDIT_LOG_RETENTION_DAYS` (180 días), vía el cron job `prune_observability_logs_job`
+    (`workers/settings.py`, corre diario a las 3am). Si el uso de almacenamiento se acerca al
+    límite, bajar esas constantes es más simple y más seguro que purgar tablas de dominio
+    (grupos/ejercicios/calificaciones) a mano.
+
+**4. Keep-warm y alerta de presupuesto (ítem 20)** — `.github/workflows/keep-warm.yml` hace
+`curl` a `/health` en horario lectivo para evitar el cold start de Render frente a un
+estudiante en plena clase, y opcionalmente (si se configuran los secrets
+`CRON_TEACHER_EMAIL`/`CRON_TEACHER_PASSWORD` de una cuenta docente dedicada) consulta
+`GET /observability/ai/usage` y falla el workflow si `budget.level == "critical"` — GitHub le
+manda correo al dueño del repo cuando un `schedule` falla, que es el canal de alerta gratis
+dado que el proyecto no tiene SMTP configurado (ver `config.py`).
 
 ### Documentación (MkDocs → GitHub Pages)
 

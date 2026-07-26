@@ -119,6 +119,87 @@ export async function joinGroup(student: TestUser, inviteCode: string) {
   )
 }
 
+export async function createGuideFolder(teacher: TestUser, groupId: string, name: string) {
+  return api<{ id: string }>(
+    `/groups/${groupId}/guide-folders`,
+    { method: 'POST', body: JSON.stringify({ name }) },
+    teacher.accessToken,
+  )
+}
+
+export async function createGuideTemplate(teacher: TestUser, name: string) {
+  return api<{ id: string; version: number }>(
+    '/guide-templates',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        sections: [{ heading: 'Objetivos', instructions: 'Lista tres objetivos de aprendizaje.' }],
+        tone: 'cercano',
+        target_level: 'basico',
+      }),
+    },
+    teacher.accessToken,
+  )
+}
+
+/** Igual que `insertAiDraftExercise`: `POST /ai/guides/generate` devuelve 202 y
+ * deja la guía en `generating`, pero el worker la marcaría `failed` sin API keys
+ * de un proveedor LLM configuradas — que este entorno local no tiene ni necesita
+ * para probar la UI de publicación. Este helper inserta el borrador ya redactado
+ * directamente en la base de datos de desarrollo. */
+export async function insertDraftGuide(
+  teacherEmail: string,
+  folderId: string,
+  templateId: string,
+  topicId: string,
+  title: string,
+): Promise<string> {
+  const { execFileSync } = await import('node:child_process')
+  const script = `
+import asyncio
+from sqlalchemy import select
+from logica.db import get_session_factory
+from logica.modules.users.models import User
+from logica.modules.content.models import Language, Topic, TopicGroupState  # noqa: F401 (registra FKs)
+from logica.modules.groups.models import Group, GroupMembership  # noqa: F401 (registra FKs)
+from logica.modules.guides.models import Guide, GuideOrigin, GuideStatus
+
+async def main():
+    sf = get_session_factory()
+    async with sf() as db:
+        result = await db.execute(select(User).where(User.email == "${teacherEmail}"))
+        teacher = result.scalar_one()
+        guide = Guide(
+            institution_id=teacher.institution_id,
+            folder_id="${folderId}",
+            template_id="${templateId}",
+            topic_id="${topicId}",
+            created_by_id=teacher.id,
+            title="${title}",
+            content_md="## Objetivos\\n\\n- Reconocer cuando un problema necesita un ciclo.\\n- Escribir un ciclo con su condicion de salida.",
+            origin=GuideOrigin.ai,
+            status=GuideStatus.draft,
+            sources=["Apuntes de clase E2E"],
+            prompt_version=1,
+        )
+        db.add(guide)
+        await db.commit()
+        print(guide.id)
+
+asyncio.run(main())
+`
+  const output = execFileSync('uv', ['run', 'python', '-c', script], {
+    cwd: new URL('../../api', import.meta.url).pathname,
+    env: {
+      ...process.env,
+      DATABASE_URL: 'postgresql+asyncpg://logica:logica@localhost:5434/logica',
+    },
+    encoding: 'utf-8',
+  })
+  return output.trim().split('\n').pop()!
+}
+
 /** `POST /exercises` siempre crea con `origin=teacher` — el único camino
  * público hacia un borrador `origin=ai` es `POST /ai/exercises/generate`,
  * que sin proveedores de IA configurados en este entorno local devuelve

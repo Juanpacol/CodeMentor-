@@ -1,0 +1,134 @@
+# Golden dataset — tarea "guide_generation" (Fase 16). `fake_model_output` es el
+# JSON que produciría el modelo para UNA sección; el runner lo pasa por el mismo
+# `complete_structured(..., output_model=GuideSectionOutput)` que usa el agente
+# real, así que un cambio en `guide_generation.vN.j2` que rompa el renderizado o
+# el parseo lo detecta esta suite sin gastar tokens.
+#
+# Los casos cubren las tres ramas condicionales de la plantilla:
+# `reference_context` presente/ausente y `previous_sections` presente/ausente.
+cases:
+  - id: objetivos_ciclos_basico_sin_contexto
+    template_vars:
+      guide_title: "Guía de laboratorio — Ciclos"
+      topic_name: "Ciclos"
+      language: "PSeInt"
+      level: "basico"
+      tone: "cercano"
+      section_heading: "Objetivos"
+      section_instructions: "Lista 3 objetivos de aprendizaje en viñetas."
+      reference_context: ""
+      previous_sections: ""
+    fake_model_output: >-
+      {"heading": "Objetivos",
+      "body_md": "Al terminar esta guía vas a poder:\n\n- Reconocer cuándo un problema
+      necesita un ciclo.\n- Escribir un ciclo `Mientras` con su condición de salida.\n-
+      Explicar por qué un ciclo sin condición de salida nunca termina."}
+    checks:
+      heading_min_length: 3
+      body_min_length: 40
+
+  - id: explicacion_ciclos_basico_con_contexto
+    template_vars:
+      guide_title: "Guía de laboratorio — Ciclos"
+      topic_name: "Ciclos"
+      language: "PSeInt"
+      level: "basico"
+      tone: "cercano"
+      section_heading: "Explicación"
+      section_instructions: "Explica el ciclo Mientras con un ejemplo de código comentado."
+      reference_context: "[Fuente: Apuntes de clase]\nEn PSeInt el ciclo Mientras evalúa la condición ANTES de ejecutar el bloque."
+      previous_sections: "## Objetivos\nAl terminar esta guía vas a poder reconocer cuándo un problema necesita un ciclo."
+    fake_model_output: >-
+      {"heading": "Explicación",
+      "body_md": "El ciclo `Mientras` revisa su condición **antes** de entrar al bloque.
+      Si la condición es falsa desde el principio, el bloque no se ejecuta ni una vez.\n\n```\ncontador <- 0\nMientras contador < 3 Hacer\n    Escribir contador\n    contador <- contador + 1\nFinMientras\n```"}
+    checks:
+      heading_min_length: 3
+      body_min_length: 60
+
+  - id: ejercicios_condicionales_intermedio
+    template_vars:
+      guide_title: "Guía de práctica — Condicionales"
+      topic_name: "Estructuras condicionales"
+      language: "Python"
+      level: "intermedio"
+      tone: "formal"
+      section_heading: "Ejercicios propuestos"
+      section_instructions: "Propón 2 ejercicios de dificultad creciente, sin dar la solución."
+      reference_context: "[Fuente: Guía de Python]\nLa sentencia elif permite encadenar condiciones."
+      previous_sections: "## Explicación\nLa sentencia if evalúa una condición booleana."
+    fake_model_output: >-
+      {"heading": "Ejercicios propuestos",
+      "body_md": "1. Escribe un programa que lea una nota de 0 a 100 e imprima si aprobó
+      (>= 60) o no.\n2. Extiende el programa anterior para que imprima la letra
+      correspondiente: A, B, C o F, usando `elif`."}
+    checks:
+      heading_min_length: 3
+      body_min_length: 50
+
+  - id: introduccion_funciones_avanzado
+    template_vars:
+      guide_title: "Guía — Funciones y alcance"
+      topic_name: "Funciones"
+      language: "Python"
+      level: "avanzado"
+      tone: "técnico"
+      section_heading: "Introducción"
+      section_instructions: "Contextualiza por qué importan las funciones en un programa grande."
+      reference_context: ""
+      previous_sections: ""
+    fake_model_output: >-
+      {"heading": "Introducción",
+      "body_md": "Cuando un programa crece, repetir el mismo bloque en varios lugares
+      lo vuelve imposible de mantener: un cambio obliga a editar cada copia. Las
+      funciones permiten nombrar un bloque una sola vez y reutilizarlo."}
+    checks:
+      heading_min_length: 3
+      body_min_length: 60
+
+  - id: cierre_arreglos_intermedio
+    template_vars:
+      guide_title: "Guía — Arreglos"
+      topic_name: "Arreglos"
+      language: "PSeInt"
+      level: "intermedio"
+      tone: "cercano"
+      section_heading: "Para repasar"
+      section_instructions: "Resume en 3 viñetas lo esencial de la guía."
+      reference_context: "[Fuente: Apuntes de clase]\nUn arreglo se dimensiona con Dimension."
+      previous_sections: "## Objetivos\nUsar arreglos de una dimensión.\n\n## Explicación\nUn arreglo guarda varios valores bajo un mismo nombre."
+    fake_model_output: >-
+      {"heading": "Para repasar",
+      "body_md": "- Un arreglo guarda varios valores bajo un mismo nombre, cada uno con
+      su índice.\n- En PSeInt se declara su tamaño con `Dimension`.\n- Recorrer un
+      arreglo con `Para` es más claro que con `Mientras` cuando se conoce el tamaño."}
+    checks:
+      heading_min_length: 3
+      body_min_length: 50
+
+  - id: explicacion_variables_basico_json_con_prosa
+    template_vars:
+      guide_title: "Guía — Variables"
+      topic_name: "Variables"
+      language: "PSeInt"
+      level: "basico"
+      tone: "cercano"
+      section_heading: "Explicación"
+      section_instructions: "Explica qué es una variable con una analogía simple."
+      reference_context: ""
+      previous_sections: ""
+    # El modelo envuelve el JSON en prosa y cercas de código a pesar de las
+    # instrucciones: `structured._extract_json` debe recuperarlo igual. Este caso
+    # existe para que ese rescate quede cubierto por la suite de regresión.
+    fake_model_output: >-
+      Claro, aquí tienes la sección:
+
+      ```json
+      {"heading": "Explicación",
+      "body_md": "Una variable es como una caja con una etiqueta: la etiqueta es el
+      nombre y lo que guardas adentro es el valor. Puedes cambiar el contenido, pero
+      la etiqueta sigue siendo la misma."}
+      ```
+    checks:
+      heading_min_length: 3
+      body_min_length: 60

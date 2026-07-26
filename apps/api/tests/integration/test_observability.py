@@ -4,7 +4,9 @@ from datetime import UTC, datetime, timedelta
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
+from logica.ai.harness.router import AllProvidersFailedError
 from logica.core.audit import AuditLog, record_audit
+from logica.core.errors import ConflictError, NotFoundError, PermissionDeniedError
 from logica.db import get_session_factory
 from logica.main import create_app
 from logica.modules.observability import repository as observability_repository
@@ -264,3 +266,98 @@ async def test_prune_observability_logs_deletes_only_old_rows(institution: Insti
 
     assert remaining_errors == {"/reciente"}
     assert "viejo" not in remaining_audit
+
+
+class _CapturingArqPool:
+    """Captura los encolados en vez de encolarlos: verificar que el incidente se
+    registró no debería depender de que haya un worker corriendo."""
+
+    def __init__(self) -> None:
+        self.jobs: list[tuple[str, dict[str, object]]] = []
+
+    async def enqueue_job(self, name: str, payload: dict[str, object]) -> None:
+        self.jobs.append((name, payload))
+
+    async def aclose(self) -> None:
+        """El `lifespan` cierra el pool al apagar la app; sin esto el teardown
+        revienta con AttributeError y tapa el resultado real del test."""
+
+
+async def _capture_incidents_for(exc: Exception) -> list[tuple[str, dict[str, object]]]:
+    """Levanta la app con una ruta que lanza `exc` y devuelve lo que se encoló."""
+    app = create_app()
+
+    @app.get("/__test_dependency_down__")
+    async def _down() -> None:
+        raise exc
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with (
+        app.router.lifespan_context(app),
+        AsyncClient(transport=transport, base_url="http://test") as client,
+    ):
+        pool = _CapturingArqPool()
+        app.state.arq_pool = pool
+        resp = await client.get("/__test_dependency_down__")
+
+    assert resp.status_code == exc.status_code  # type: ignore[attr-defined]
+    return pool.jobs
+
+
+async def test_service_unavailable_is_recorded_as_an_incident(institution: Institution) -> None:
+    """Un 503 es una dependencia caída, no un error de dominio del usuario: sin
+    esto, una caída total de proveedores de IA solo dejaba rastro en /metrics —
+    que este despliegue gratuito no raspa — y nadie se enteraba."""
+    jobs = await _capture_incidents_for(
+        AllProvidersFailedError("progressive_hint", ["groq/x: 429", "gemini/y: timeout"])
+    )
+
+    assert len(jobs) == 1
+    name, payload = jobs[0]
+    assert name == "record_error_log_job"
+    assert payload["status_code"] == 503
+    assert payload["exception_type"] == "AllProvidersFailedError"
+    assert payload["path"] == "/__test_dependency_down__"
+    # El detalle por proveedor es lo único accionable: el traceback de un 503
+    # solo apuntaría al harness.
+    assert "groq/x: 429" in str(payload["stacktrace"])
+    assert "gemini/y: timeout" in str(payload["stacktrace"])
+
+
+async def test_service_unavailable_still_degrades_gracefully_for_the_user(
+    institution: Institution,
+) -> None:
+    """Registrar el incidente no cambia lo que ve el estudiante (§9.4): sigue
+    siendo un 503 con mensaje en español, nunca un 500 crudo."""
+    app = create_app()
+
+    @app.get("/__test_ai_down__")
+    async def _down() -> None:
+        raise AllProvidersFailedError("progressive_hint", ["groq/x: 429"])
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with (
+        app.router.lifespan_context(app),
+        AsyncClient(transport=transport, base_url="http://test") as client,
+    ):
+        app.state.arq_pool = _CapturingArqPool()
+        resp = await client.get("/__test_ai_down__")
+
+    assert resp.status_code == 503
+    assert "no está disponible" in resp.json()["detail"]
+    # No se filtra el detalle interno de los proveedores al cliente.
+    assert "groq" not in resp.text
+
+
+async def test_expected_4xx_domain_errors_are_not_recorded_as_incidents(
+    institution: Institution,
+) -> None:
+    """El otro lado del filtro: un estudiante que agota su cupo diario (409) o pide
+    algo sin permiso (403) es comportamiento esperado. Registrarlos ahogaría en
+    ruido justo la señal que el test de arriba quiere hacer visible."""
+    for exc in (
+        ConflictError("Alcanzaste el límite diario"),
+        PermissionDeniedError("No administras este grupo"),
+        NotFoundError("Guía no encontrada"),
+    ):
+        assert await _capture_incidents_for(exc) == []

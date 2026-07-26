@@ -28,6 +28,12 @@ const AGENT_INFO: Record<AgentName, { label: string; description: string }> = {
     label: 'Integridad de código',
     description: 'Alerta advisory sobre posibles indicios de copia — nunca aplica una sanción.',
   },
+  guide_generation: {
+    label: 'Creador de guías',
+    description:
+      'Redacta guías de clase como borrador, fundamentadas en tu material de apoyo. Apagarlo ' +
+      'también detiene la autogeneración al habilitar un tema.',
+  },
 }
 
 const AGENT_ORDER: AgentName[] = [
@@ -36,6 +42,7 @@ const AGENT_ORDER: AgentName[] = [
   'grading_suggestion',
   'summarize_group',
   'code_integrity',
+  'guide_generation',
 ]
 
 export function AgentsTab({ groupId }: { groupId: string }) {
@@ -81,7 +88,7 @@ export function AgentsTab({ groupId }: { groupId: string }) {
                 className="peer sr-only"
               />
               <div className="h-6 w-11 rounded-full bg-overlay transition-colors peer-checked:bg-primary" />
-              <div className="absolute left-1 size-4 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
+              <div className="absolute left-1 size-4 rounded-full bg-canvas transition-transform peer-checked:translate-x-5" />
             </label>
           </Card>
         )

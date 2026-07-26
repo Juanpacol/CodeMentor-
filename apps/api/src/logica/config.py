@@ -41,6 +41,18 @@ class Settings(BaseSettings):
     reports_dir: str = "./reports"
 
     ai_daily_token_budget_per_student: int = 20_000
+    # Fase 16: un docente consume en una sola acción lo que un estudiante en un
+    # día — generar una guía son N llamadas (una por sección) con contexto RAG
+    # en cada una. Con el tope de estudiante, la primera guía se rechazaría por
+    # presupuesto. Sigue siendo un tope: acota un bucle descontrolado o un cron
+    # mal configurado, no el uso normal.
+    ai_daily_token_budget_per_teacher: int = 200_000
+    # Ítem 14: umbral mensual de costo ESTIMADO (no facturación real) para el
+    # nivel de alerta ok/warning/critical del dashboard de costo — ver
+    # ai/repository.py::budget_status_for_institution. En los free tiers de
+    # Groq/Gemini el gasto real es $0; este número sirve para atribución
+    # relativa entre agentes, no para un corte duro.
+    ai_monthly_cost_limit_usd: float = 5.0
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 

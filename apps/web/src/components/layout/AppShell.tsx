@@ -1,10 +1,11 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router'
 
 import { cn } from '../../lib/cn'
 import { useAuth } from '../../hooks/useAuth'
 import { Button } from '../ui/Button'
+import { ThemeToggle } from '../ui/ThemeToggle'
 
 interface NavItem {
   to: string
@@ -53,9 +54,12 @@ function SidebarContent({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () =
       </nav>
       <div className="border-t border-hairline pt-3">
         <p className="truncate px-2 text-xs text-ink-secondary">{user?.full_name}</p>
-        <Button variant="ghost" size="sm" className="mt-2 w-full justify-start" onClick={logout}>
-          Cerrar sesión
-        </Button>
+        <div className="mt-2 flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="flex-1 justify-start" onClick={logout}>
+            Cerrar sesión
+          </Button>
+          <ThemeToggle />
+        </div>
       </div>
     </>
   )
@@ -69,12 +73,12 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen bg-canvas">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-hairline bg-surface p-4 md:flex">
+      <aside className="no-print hidden w-60 shrink-0 flex-col border-r border-hairline bg-surface p-4 md:flex">
         <SidebarContent nav={nav} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-hairline bg-surface px-4 py-3 md:hidden">
+        <header className="no-print flex items-center justify-between border-b border-hairline bg-surface px-4 py-3 md:hidden">
           <span className="font-mono text-lg font-semibold text-ink">CodeMentor</span>
           <button
             aria-label="Abrir menú"
@@ -101,7 +105,7 @@ export function AppShell() {
       <AnimatePresence>
         {mobileNavOpen && (
           <motion.div
-            className="fixed inset-0 z-50 bg-black/60 md:hidden"
+            className="no-print fixed inset-0 z-50 bg-scrim md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

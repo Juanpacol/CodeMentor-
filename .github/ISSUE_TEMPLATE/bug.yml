@@ -1,0 +1,45 @@
+name: Reporte de bug
+description: Algo no funciona como debería
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Qué pasó
+      description: Descripción clara y concisa del problema.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Cómo reproducirlo
+      description: Pasos exactos, en orden.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Qué esperabas que pasara
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área afectada
+      options:
+        - apps/api (backend)
+        - apps/web (frontend)
+        - CI/CD
+        - Documentación
+        - Otro
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto adicional
+      description: Logs, capturas, versión del navegador, etc.

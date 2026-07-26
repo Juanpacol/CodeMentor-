@@ -26,6 +26,7 @@ from logica.modules.content.router import router as content_router
 from logica.modules.evaluations.router import router as evaluations_router
 from logica.modules.exercises.router import router as exercises_router
 from logica.modules.groups.router import router as groups_router
+from logica.modules.guides.router import router as guides_router
 from logica.modules.observability.models import truncate_message, truncate_stacktrace
 from logica.modules.observability.router import router as observability_router
 from logica.modules.observability.service import best_effort_actor
@@ -112,8 +113,55 @@ def create_app() -> FastAPI:
     # ai.harness.metrics, exposed on the same /metrics endpoint for Prometheus.
     Instrumentator().instrument(app).expose(app, include_in_schema=False)
 
+    async def _record_incident(
+        request: Request, exc: Exception, *, status_code: int, stacktrace: str
+    ) -> None:
+        """Persiste un incidente en `error_logs` vía arq — nunca en la misma
+        request que falló: si la causa fue una sesión de DB rota, escribir ahí
+        fallaría justo cuando más importa."""
+        user_id, institution_id = best_effort_actor(request)
+        payload = {
+            "institution_id": str(institution_id) if institution_id else None,
+            "user_id": str(user_id) if user_id else None,
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": status_code,
+            "exception_type": type(exc).__name__,
+            "message": truncate_message(str(exc)),
+            "stacktrace": truncate_stacktrace(stacktrace),
+        }
+        try:
+            await request.app.state.arq_pool.enqueue_job("record_error_log_job", payload)
+        except Exception:
+            logger.exception("error_log_enqueue_failed")
+
     @app.exception_handler(LogicaError)
     async def handle_logica_error(request: Request, exc: LogicaError) -> JSONResponse:
+        # Un 503 no es un error de dominio del usuario: es una dependencia caída
+        # (§9.4 — todos los proveedores de IA, el sandbox...). El estudiante ve la
+        # degradación amable igual, pero sin esto nadie más se enteraba: el handler
+        # de `Exception` de abajo no lo alcanza (FastAPI despacha por especificidad
+        # de clase) y `ai_errors_total` solo vive en /metrics, que este despliegue
+        # gratuito no raspa. Así el incidente aparece en el mismo `error_logs` que
+        # ya lee el ErrorLogTab de la Fase 13.
+        #
+        # Solo los 503: un estudiante que agota su cupo diario o pide algo sin
+        # permiso son 4xx esperados, no incidentes — registrarlos ahogaría en ruido
+        # justo la señal que esto quiere hacer visible.
+        if exc.status_code == 503:
+            # `errors` lo trae AllProvidersFailedError con el detalle por proveedor
+            # ("groq/...: 429", "gemini/...: ..."), que es lo único accionable acá
+            # — el traceback de un 503 solo apunta al harness. `getattr` y no un
+            # import de ai.harness.router para no acoplar main.py a ese módulo.
+            provider_errors = getattr(exc, "errors", None)
+            await _record_incident(
+                request,
+                exc,
+                status_code=503,
+                stacktrace="\n".join(provider_errors)
+                if provider_errors
+                else traceback.format_exc(),
+            )
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
     # Fase 13: los LogicaError arriba son errores de dominio esperados y ya
@@ -126,21 +174,7 @@ def create_app() -> FastAPI:
     # fallaría justo cuando más importa).
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-        user_id, institution_id = best_effort_actor(request)
-        payload = {
-            "institution_id": str(institution_id) if institution_id else None,
-            "user_id": str(user_id) if user_id else None,
-            "path": request.url.path,
-            "method": request.method,
-            "status_code": 500,
-            "exception_type": type(exc).__name__,
-            "message": truncate_message(str(exc)),
-            "stacktrace": truncate_stacktrace(traceback.format_exc()),
-        }
-        try:
-            await request.app.state.arq_pool.enqueue_job("record_error_log_job", payload)
-        except Exception:
-            logger.exception("error_log_enqueue_failed")
+        await _record_incident(request, exc, status_code=500, stacktrace=traceback.format_exc())
         return JSONResponse(status_code=500, content={"detail": "Error interno del servidor."})
 
     @app.get("/health", tags=["health"])
@@ -163,6 +197,7 @@ def create_app() -> FastAPI:
     app.include_router(users_router)
     app.include_router(groups_router)
     app.include_router(content_router)
+    app.include_router(guides_router)
     app.include_router(exercises_router)
     app.include_router(evaluations_router)
     app.include_router(sandbox_router)

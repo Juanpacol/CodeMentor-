@@ -7,6 +7,7 @@ only ever changes when a teacher confirms it via the pre-existing
 
 import uuid
 
+import structlog
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +25,8 @@ from logica.modules.evaluations.repository import (
 from logica.modules.exercises.repository import get_exercise
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.users.models import Role, User
+
+logger = structlog.get_logger()
 
 
 class GradingSuggestionOutput(BaseModel):
@@ -75,8 +78,13 @@ async def suggest_grade(
         output_model=GradingSuggestionOutput,
     )
 
+    had_previous_suggestion = answer.ai_suggested_score is not None
     answer.ai_suggested_score = output.suggested_score
     answer.ai_suggested_justification = output.justification
     await db.flush()
     await db.refresh(answer)
+    if had_previous_suggestion:
+        logger.info("grading_suggestion_overwritten", answer_id=str(answer.id))
+    else:
+        logger.info("grading_suggestion_persisted", answer_id=str(answer.id))
     return answer

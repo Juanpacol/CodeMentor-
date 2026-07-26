@@ -1,10 +1,68 @@
 <!doctype html>
-<html lang="es">
+<!-- data-theme="dark" hardcodeado: red de seguridad si el script de abajo
+     lanza (ej. localStorage bloqueado en modo privado) — nunca queda sin
+     atributo. -->
+<html lang="es" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Debe ser síncrono y NO type="module" (los módulos son defer
+      // implícito y correrían después del primer pintado, que es como se ve
+      // el flash clásico). Es lo único que tiene que pasar antes de pintar:
+      // fijar data-theme y color-scheme en <html> según localStorage o, si
+      // el usuario nunca eligió, la preferencia del sistema.
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('cm-theme')
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark'
+          var root = document.documentElement
+          root.dataset.theme = theme
+          root.style.colorScheme = theme
+        } catch (e) {
+          // almacenamiento bloqueado: se queda el 'dark' del atributo
+          // hardcodeado arriba.
+        }
+      })()
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CodeMentor</title>
+    <title>CodeMentor — Plataforma de lógica de programación con IA</title>
+    <meta
+      name="description"
+      content="Plataforma web de lógica de programación (PSeInt y Python) con tutor de IA, ejercicios interactivos, evaluaciones cronometradas y seguimiento de progreso para docentes y estudiantes."
+    />
+    <!-- Uno por esquema: el navegador elige según prefers-color-scheme antes
+         de que corra cualquier JS. No seguirá el toggle manual del usuario
+         después de cargar (eso requeriría actualizar el meta en JS, fuera de
+         alcance por ahora) — es solo el color de la UI del navegador
+         (address bar), no afecta el theming real de la página. -->
+    <meta name="theme-color" content="#191919" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CodeMentor — Plataforma de lógica de programación con IA" />
+    <meta
+      property="og:description"
+      content="Tutor de IA, ejercicios interactivos, evaluaciones cronometradas y seguimiento de progreso para docentes y estudiantes de lógica de programación."
+    />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:locale" content="es_CO" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="CodeMentor — Plataforma de lógica de programación con IA" />
+    <meta
+      name="twitter:description"
+      content="Tutor de IA, ejercicios interactivos, evaluaciones cronometradas y seguimiento de progreso para docentes y estudiantes de lógica de programación."
+    />
+    <meta name="twitter:image" content="/og-image.png" />
   </head>
   <body>
     <div id="root"></div>

@@ -1,0 +1,52 @@
+name: Keep warm
+
+# Ítem 20 del plan de mejoras: el free tier de Render duerme el web service
+# tras ~15 min sin tráfico — sin esto, la primera petición de un estudiante
+# a mitad de clase paga un cold start de 30-60s. Corre solo en horario
+# lectivo de Colombia (UTC-5) para no gastar minutos de Actions de noche/fin
+# de semana sin motivo.
+on:
+  schedule:
+    # Cada 10 min, lunes a viernes, 11:00-22:59 UTC = 6:00am-5:59pm COT.
+    - cron: "*/10 11-22 * * 1-5"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      CRON_TEACHER_EMAIL: ${{ secrets.CRON_TEACHER_EMAIL }}
+      CRON_TEACHER_PASSWORD: ${{ secrets.CRON_TEACHER_PASSWORD }}
+    steps:
+      - name: Ping /health
+        run: |
+          curl --fail --silent --show-error "${{ vars.API_URL }}/health"
+
+      # Ítem 14 comparte este workflow a propósito: reutiliza el campo
+      # `budget.level` que GET /observability/ai/usage ya calcula, en vez de
+      # montar un canal de notificación aparte (no hay SMTP configurado, ver
+      # config.py). GitHub le manda un correo al dueño del repo cuando un
+      # workflow con `schedule` falla — es el canal de alerta gratis.
+      # Opcional: solo corre si CRON_TEACHER_EMAIL/PASSWORD están seteados
+      # como secrets del repo (una cuenta docente dedicada, no una real).
+      - name: Chequear presupuesto de IA
+        if: ${{ env.CRON_TEACHER_EMAIL != '' }}
+        run: |
+          TOKEN=$(curl --fail --silent -X POST "${{ vars.API_URL }}/auth/login" \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"$CRON_TEACHER_EMAIL\",\"password\":\"$CRON_TEACHER_PASSWORD\"}" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+
+          LEVEL=$(curl --fail --silent "${{ vars.API_URL }}/observability/ai/usage" \
+            -H "Authorization: Bearer $TOKEN" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["budget"]["level"])')
+
+          echo "Nivel de presupuesto de IA del mes: $LEVEL"
+          if [ "$LEVEL" = "critical" ]; then
+            echo "::error::Presupuesto mensual de IA en nivel crítico (>=90% de ai_monthly_cost_limit_usd)"
+            exit 1
+          fi

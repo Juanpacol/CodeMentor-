@@ -1,5 +1,6 @@
 from httpx import AsyncClient
 
+from logica.ai.agents.models import AgentName
 from logica.modules.users.models import Institution
 from tests.integration.conftest import auth_headers, create_group, register_and_login
 
@@ -16,7 +17,11 @@ async def test_default_agents_are_all_enabled(
     )
     assert resp.status_code == 200
     statuses = resp.json()
-    assert len(statuses) == 5
+    # Contra `AgentName` y no contra un número fijo: lo que se está afirmando es
+    # "todo agente arranca habilitado" (RF-30), no cuántos agentes hay. Con un
+    # `len(statuses) == N` este test se rompía cada vez que una fase agregaba un
+    # agente, señalando una regresión donde solo había un enum más largo.
+    assert {s["agent_name"] for s in statuses} == {a.value for a in AgentName}
     assert all(s["enabled"] is True for s in statuses)
 
 

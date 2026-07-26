@@ -23,6 +23,7 @@ from logica.ai.harness.guardrails import (
     check_output_safety,
 )
 from logica.ai.harness.metrics import (
+    ai_cost_usd_total,
     ai_errors_total,
     ai_request_latency_seconds,
     ai_requests_total,
@@ -55,11 +56,20 @@ async def complete_task(
     template_vars: dict[str, Any],
     untrusted_input: str | None = None,
     forbid_full_solution: bool = False,
+    prompt_version: int | None = None,
 ) -> HarnessResult:
     """`untrusted_input` is whatever free text in `template_vars` actually
     came from the student (e.g. their latest answer) — only that slice is
     checked for prompt-injection, since the rest of the rendered prompt is
-    our own trusted template content."""
+    our own trusted template content.
+
+    `prompt_version=None` (el caso normal) usa la versión activa de la tarea
+    (`prompts.ACTIVE_PROMPT_VERSIONS`); pasar un entero explícito es lo que
+    permite a las evals de regresión pedir una versión específica para
+    comparar contra la activa — ver `prompts.render_prompt`. No es una
+    segunda vía hacia un modelo (ADR-003 sigue intacto): sigue siendo el
+    único punto de entrada, solo con un parámetro más para fijar la
+    plantilla."""
     start = time.monotonic()
     try:
         result = await _complete_task_inner(
@@ -70,6 +80,7 @@ async def complete_task(
             template_vars=template_vars,
             untrusted_input=untrusted_input,
             forbid_full_solution=forbid_full_solution,
+            prompt_version=prompt_version,
         )
     except LogicaError as exc:
         ai_errors_total.labels(task=task, error_type=type(exc).__name__).inc()
@@ -89,15 +100,17 @@ async def _complete_task_inner(
     template_vars: dict[str, Any],
     untrusted_input: str | None,
     forbid_full_solution: bool,
+    prompt_version: int | None = None,
 ) -> HarnessResult:
     if untrusted_input:
         check_input_safety(untrusted_input)
 
-    await budget.check_budget(redis, str(user.id))
+    await budget.check_budget(redis, str(user.id), user.role)
 
-    prompt = render_prompt(task, **template_vars)
+    rendered = render_prompt(task, prompt_version=prompt_version, **template_vars)
+    prompt = rendered.text
 
-    cached = await cache.get_cached_response(redis, task, prompt)
+    cached = await cache.get_cached_response(redis, task, prompt, rendered.version)
     if cached is not None:
         await record_interaction(
             db,
@@ -109,6 +122,7 @@ async def _complete_task_inner(
             prompt_tokens=0,
             completion_tokens=0,
             from_cache=True,
+            prompt_version=rendered.version,
         )
         tracing.trace_completion(
             task=task,
@@ -119,6 +133,7 @@ async def _complete_task_inner(
             completion_tokens=0,
             from_cache=True,
             student_alias=str(user.id),
+            prompt_version=rendered.version,
         )
         ai_requests_total.labels(task=task, model="cache", from_cache="true").inc()
         return HarnessResult(text=cached, model="cache", from_cache=True)
@@ -141,13 +156,15 @@ async def _complete_task_inner(
             from_cache=False,
             blocked_by_guardrail=True,
             extra={"reason": check_result.reason},
+            prompt_version=rendered.version,
+            cost_usd=result.cost_usd,
         )
         raise OutputBlockedByGuardrailError(
             "La respuesta del asistente no pudo entregarse por una regla de seguridad. "
             "Intenta de nuevo o pide ayuda a tu docente."
         )
 
-    await cache.set_cached_response(redis, task, prompt, result.text)
+    await cache.set_cached_response(redis, task, prompt, result.text, rendered.version)
     await budget.record_usage(redis, str(user.id), result.prompt_tokens + result.completion_tokens)
     await record_interaction(
         db,
@@ -159,6 +176,8 @@ async def _complete_task_inner(
         prompt_tokens=result.prompt_tokens,
         completion_tokens=result.completion_tokens,
         from_cache=False,
+        prompt_version=rendered.version,
+        cost_usd=result.cost_usd,
     )
     tracing.trace_completion(
         task=task,
@@ -168,10 +187,12 @@ async def _complete_task_inner(
         prompt_tokens=result.prompt_tokens,
         completion_tokens=result.completion_tokens,
         from_cache=False,
+        prompt_version=rendered.version,
         student_alias=str(user.id),
     )
 
     ai_requests_total.labels(task=task, model=result.model, from_cache="false").inc()
     ai_tokens_total.labels(task=task).inc(result.prompt_tokens + result.completion_tokens)
+    ai_cost_usd_total.labels(task=task, model=result.model).inc(float(result.cost_usd))
 
     return HarnessResult(text=result.text, model=result.model, from_cache=False)

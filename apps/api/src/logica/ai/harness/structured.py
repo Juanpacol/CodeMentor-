@@ -48,6 +48,7 @@ async def complete_structured[T: BaseModel](
     output_model: type[T],
     untrusted_input: str | None = None,
     max_retries: int = 2,
+    prompt_version: int | None = None,
 ) -> T:
     """Structured-output tasks (exercise_generation, grading_suggestion,
     code_integrity) are only ever invoked by teacher-facing flows, never
@@ -70,6 +71,7 @@ async def complete_structured[T: BaseModel](
             user=user,
             template_vars=vars_for_call,
             untrusted_input=untrusted_input if attempt == 0 else None,
+            prompt_version=prompt_version,
         )
 
         try:

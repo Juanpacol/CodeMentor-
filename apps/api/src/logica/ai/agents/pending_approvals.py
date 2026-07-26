@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from logica.core.errors import PermissionDeniedError
 from logica.modules.evaluations.models import Evaluation, EvaluationAnswer, EvaluationExercise
 from logica.modules.exercises.models import Exercise, ExerciseOrigin, ExerciseStatus
+from logica.modules.guides import repository as guides_repository
+from logica.modules.guides.models import Guide
 from logica.modules.users.models import Role, User
 
 
@@ -55,10 +57,14 @@ async def _list_pending_grading_suggestions(
 
 async def list_pending_approvals(
     db: AsyncSession, teacher: User
-) -> tuple[list[Exercise], list[PendingGradingSuggestion]]:
+) -> tuple[list[Exercise], list[PendingGradingSuggestion], list[Guide]]:
     if teacher.role not in (Role.teacher, Role.admin):
         raise PermissionDeniedError("Solo un docente o administrador puede ver esta bandeja")
 
     exercises = await _list_pending_exercises(db, teacher.institution_id)
     suggestions = await _list_pending_grading_suggestions(db, teacher.institution_id)
-    return exercises, suggestions
+    # Fase 16: una guía `origin=ai, status=draft` es exactamente el mismo tipo de
+    # pendiente que un ejercicio borrador — entra en la misma cola en vez de
+    # obligar al docente a revisar una pestaña aparte (§9.6).
+    guides = await guides_repository.list_ai_draft_guides(db, teacher.institution_id)
+    return exercises, suggestions, guides

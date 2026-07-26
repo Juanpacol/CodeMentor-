@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'motion/react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'

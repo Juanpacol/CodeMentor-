@@ -1,6 +1,7 @@
 import CodeMirror from '@uiw/react-codemirror'
 
 import { getCodeMirrorExtensions } from '../../lib/codemirror/getExtensions'
+import { useTheme } from '../../lib/theme'
 import type { ExerciseRendererProps } from './types'
 
 interface LiveCodeAnswer {
@@ -17,6 +18,7 @@ export function LiveCodeRenderer({
   const starterCode = String(content.starter_code ?? '')
   const language = String(content.language ?? 'python')
   const code = value?.code ?? starterCode
+  const theme = useTheme()
 
   return (
     <div>
@@ -25,7 +27,7 @@ export function LiveCodeRenderer({
         <CodeMirror
           value={code}
           height="260px"
-          theme="dark"
+          theme={theme}
           editable={!disabled}
           extensions={getCodeMirrorExtensions(language)}
           onChange={(next) => onChange({ code: next })}

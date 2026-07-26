@@ -1,5 +1,6 @@
 import uuid
 
+from arq import ArqRedis
 from fastapi import APIRouter, Depends
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +31,7 @@ from logica.ai.agents.schemas import (
     TutorHintRequest,
     TutorMessageOut,
 )
+from logica.core.arq_dep import get_arq_pool
 from logica.core.errors import NotFoundError
 from logica.core.redis_dep import get_redis
 from logica.core.security import get_current_user
@@ -37,6 +39,9 @@ from logica.db import get_db
 from logica.modules.evaluations.repository import get_evaluation
 from logica.modules.exercises.schemas import ExerciseOut
 from logica.modules.groups.service import get_group_with_access
+from logica.modules.guides import service as guides_service
+from logica.modules.guides.models import Guide
+from logica.modules.guides.schemas import GuideGenerateRequest, GuideOut
 from logica.modules.users.models import User
 
 router = APIRouter(prefix="/ai", tags=["ai-agents"])
@@ -118,6 +123,29 @@ async def generate_exercise(
     return ExerciseOut.model_validate(exercise)
 
 
+@router.post("/guides/generate", response_model=GuideOut, status_code=202)
+async def generate_guide(
+    payload: GuideGenerateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    arq_pool: ArqRedis = Depends(get_arq_pool),
+) -> Guide:
+    """202 y no 201: devuelve la guía en `status=generating` y el worker la
+    completa. Generar son N llamadas al modelo (una por sección) con 30 s de
+    timeout cada una — en el request path se pasaría del límite de Render.
+    El cliente hace polling sobre `GET /guides/{id}`."""
+    guide = await guides_service.request_guide_generation(
+        db,
+        arq_pool,
+        user,
+        folder_id=payload.folder_id,
+        template_id=payload.template_id,
+        topic_id=payload.topic_id,
+    )
+    await db.commit()
+    return guide
+
+
 @router.post("/grading/suggest", response_model=GradingSuggestionOut)
 async def suggest_grading(
     payload: GradingSuggestionRequest,
@@ -191,9 +219,10 @@ async def get_pending_approvals(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PendingApprovalsOut:
-    exercises, suggestions = await pending_approvals.list_pending_approvals(db, user)
+    exercises, suggestions, guides = await pending_approvals.list_pending_approvals(db, user)
     return PendingApprovalsOut(
         exercises=[PendingExerciseOut.model_validate(e) for e in exercises],
+        guides=[GuideOut.model_validate(g) for g in guides],
         grading_suggestions=[
             PendingGradingSuggestionOut(
                 answer_id=s.answer.id,

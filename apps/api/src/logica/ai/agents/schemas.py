@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from logica.ai.agents.models import AgentName, TutorMessageRole
 from logica.modules.exercises.models import ExerciseType
+from logica.modules.guides.schemas import GuideOut
 
 
 class AgentConfigOut(BaseModel):
@@ -28,8 +29,14 @@ class TutorMessageOut(BaseModel):
     role: TutorMessageRole
     content: str
     created_at: datetime
+    sources: list[str] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+    @field_validator("sources", mode="before")
+    @classmethod
+    def _default_sources(cls, value: list[str] | None) -> list[str]:
+        return value or []
 
 
 class ExerciseGenerateRequest(BaseModel):
@@ -90,3 +97,4 @@ class PendingGradingSuggestionOut(BaseModel):
 class PendingApprovalsOut(BaseModel):
     exercises: list[PendingExerciseOut]
     grading_suggestions: list[PendingGradingSuggestionOut]
+    guides: list[GuideOut]

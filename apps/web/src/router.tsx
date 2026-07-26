@@ -1,71 +1,97 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router'
 
 import { AppShell } from './components/layout/AppShell'
+import { suspended } from './components/layout/PageFallback'
 import { RequireAuth, RequireRole } from './components/layout/RequireAuth'
-import { AcademicPeriodsPage } from './features/admin/AcademicPeriodsPage'
-import { LoginPage } from './features/auth/LoginPage'
-import { RegisterPage } from './features/auth/RegisterPage'
-import { ResetConfirmPage } from './features/auth/ResetConfirmPage'
-import { ResetRequestPage } from './features/auth/ResetRequestPage'
-import { LandingPage } from './features/landing/LandingPage'
-import { EvaluationResultPage } from './features/student/EvaluationResultPage'
-import { GroupDetailPage } from './features/student/GroupDetailPage'
-import { PracticePage } from './features/student/PracticePage'
-import { ProgressPage } from './features/student/ProgressPage'
-import { StudentDashboardPage } from './features/student/StudentDashboardPage'
-import { TakeEvaluationPage } from './features/student/TakeEvaluationPage'
-import { ActivityLogPage } from './features/teacher/ActivityLogPage'
-import { ApprovalsInboxPage } from './features/teacher/ApprovalsInboxPage'
-import { EvaluationBuilderPage } from './features/teacher/EvaluationBuilderPage'
-import { EvaluationManagePage } from './features/teacher/EvaluationManagePage'
-import { ExerciseBankPage } from './features/teacher/ExerciseBankPage'
-import { TeacherDashboardPage } from './features/teacher/TeacherDashboardPage'
-import { TeacherGroupDetailPage } from './features/teacher/TeacherGroupDetailPage'
+import { RouteErrorBoundary } from './components/layout/RouteErrorBoundary'
+import {
+  AcademicPeriodsPage,
+  ActivityLogPage,
+  ApprovalsInboxPage,
+  EvaluationBuilderPage,
+  EvaluationManagePage,
+  EvaluationResultPage,
+  ExerciseBankPage,
+  GroupDetailPage,
+  LandingPage,
+  LoginPage,
+  NotFoundPage,
+  PracticePage,
+  ProgressPage,
+  RegisterPage,
+  ResetConfirmPage,
+  ResetRequestPage,
+  StudentDashboardPage,
+  TakeEvaluationPage,
+  TeacherDashboardPage,
+  TeacherGroupDetailPage,
+} from './lazyPages'
 
 export const router = createBrowserRouter([
-  { path: '/', element: <LandingPage /> },
-  { path: '/login', element: <LoginPage /> },
-  { path: '/registro', element: <RegisterPage /> },
-  { path: '/recuperar', element: <ResetRequestPage /> },
-  { path: '/recuperar/confirmar', element: <ResetConfirmPage /> },
   {
-    element: <RequireAuth />,
+    // Ruta sin path/element propios: solo declara el errorElement que
+    // createBrowserRouter usa para TODO el árbol — un error de render en
+    // cualquier página (o en RequireAuth/AppShell) cae aquí en vez de dejar
+    // la pantalla en blanco.
+    errorElement: <RouteErrorBoundary />,
     children: [
+      { path: '/', element: suspended(<LandingPage />) },
+      { path: '/login', element: suspended(<LoginPage />) },
+      { path: '/registro', element: suspended(<RegisterPage />) },
+      { path: '/recuperar', element: suspended(<ResetRequestPage />) },
+      { path: '/recuperar/confirmar', element: suspended(<ResetConfirmPage />) },
       {
-        element: <AppShell />,
+        element: <RequireAuth />,
         children: [
           {
-            element: <RequireRole roles={['student']} />,
+            element: <AppShell />,
             children: [
-              { path: '/app', element: <StudentDashboardPage /> },
-              { path: '/app/grupos/:groupId', element: <GroupDetailPage /> },
-              { path: '/app/grupos/:groupId/practicar', element: <PracticePage /> },
-              { path: '/app/evaluaciones/:evaluationId', element: <TakeEvaluationPage /> },
               {
-                path: '/app/evaluaciones/:evaluationId/resultado',
-                element: <EvaluationResultPage />,
+                element: <RequireRole roles={['student']} />,
+                children: [
+                  { path: '/app', element: suspended(<StudentDashboardPage />) },
+                  { path: '/app/grupos/:groupId', element: suspended(<GroupDetailPage />) },
+                  { path: '/app/grupos/:groupId/practicar', element: suspended(<PracticePage />) },
+                  {
+                    path: '/app/evaluaciones/:evaluationId',
+                    element: suspended(<TakeEvaluationPage />),
+                  },
+                  {
+                    path: '/app/evaluaciones/:evaluationId/resultado',
+                    element: suspended(<EvaluationResultPage />),
+                  },
+                  { path: '/app/progreso', element: suspended(<ProgressPage />) },
+                ],
               },
-              { path: '/app/progreso', element: <ProgressPage /> },
-            ],
-          },
-          {
-            element: <RequireRole roles={['teacher']} />,
-            children: [
-              { path: '/app/docente', element: <TeacherDashboardPage /> },
-              { path: '/app/docente/grupos/:groupId', element: <TeacherGroupDetailPage /> },
-              { path: '/app/docente/ejercicios', element: <ExerciseBankPage /> },
-              { path: '/app/docente/evaluaciones/nueva', element: <EvaluationBuilderPage /> },
               {
-                path: '/app/docente/evaluaciones/:evaluationId',
-                element: <EvaluationManagePage />,
+                element: <RequireRole roles={['teacher']} />,
+                children: [
+                  { path: '/app/docente', element: suspended(<TeacherDashboardPage />) },
+                  {
+                    path: '/app/docente/grupos/:groupId',
+                    element: suspended(<TeacherGroupDetailPage />),
+                  },
+                  { path: '/app/docente/ejercicios', element: suspended(<ExerciseBankPage />) },
+                  {
+                    path: '/app/docente/evaluaciones/nueva',
+                    element: suspended(<EvaluationBuilderPage />),
+                  },
+                  {
+                    path: '/app/docente/evaluaciones/:evaluationId',
+                    element: suspended(<EvaluationManagePage />),
+                  },
+                  { path: '/app/docente/bandeja', element: suspended(<ApprovalsInboxPage />) },
+                  { path: '/app/docente/actividad', element: suspended(<ActivityLogPage />) },
+                  { path: '/app/admin/periodos', element: suspended(<AcademicPeriodsPage />) },
+                ],
               },
-              { path: '/app/docente/bandeja', element: <ApprovalsInboxPage /> },
-              { path: '/app/docente/actividad', element: <ActivityLogPage /> },
-              { path: '/app/admin/periodos', element: <AcademicPeriodsPage /> },
             ],
           },
         ],
       },
+      // Catch-all: cualquier URL que no matchee ninguna ruta de arriba (en
+      // vez de la pantalla en blanco por defecto de react-router).
+      { path: '*', element: suspended(<NotFoundPage />) },
     ],
   },
 ])

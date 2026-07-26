@@ -1,15 +1,20 @@
 import uuid
-from datetime import date
+from datetime import date, timedelta
+from typing import Literal
 
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from logica.ai import repository as ai_repository
+from logica.ai.repository import AiUsageRow, GroupBy
+from logica.config import get_settings
 from logica.core.audit import AuditLog
 from logica.core.errors import PermissionDeniedError
 from logica.core.security import decode_token
 from logica.modules.observability import repository
 from logica.modules.observability.models import ErrorLog
 from logica.modules.observability.repository import Page
+from logica.modules.observability.schemas import AiBudgetStatusOut
 from logica.modules.users.models import Role, User
 
 
@@ -88,3 +93,48 @@ async def list_audit_logs_for_user(
         page=page,
         page_size=page_size,
     )
+
+
+def _budget_status(month_to_date_usd: float, monthly_limit_usd: float) -> AiBudgetStatusOut:
+    pct_used = 0.0 if monthly_limit_usd <= 0 else (month_to_date_usd / monthly_limit_usd) * 100
+    level: Literal["ok", "warning", "critical"] = (
+        "critical" if pct_used >= 90 else "warning" if pct_used >= 70 else "ok"
+    )
+    return AiBudgetStatusOut(
+        month_to_date_usd=month_to_date_usd,
+        monthly_limit_usd=monthly_limit_usd,
+        pct_used=pct_used,
+        level=level,
+    )
+
+
+async def summarize_ai_usage_for_user(
+    db: AsyncSession,
+    user: User,
+    *,
+    date_from: date | None,
+    date_to: date | None,
+    group_by: GroupBy,
+) -> tuple[list[AiUsageRow], AiBudgetStatusOut]:
+    """La query en sí vive en `ai/repository.py` (ese módulo ya es dueño de
+    todas las queries de `AiInteraction`) — este servicio solo la llama y
+    aplica la regla de acceso (docente/admin) más el cálculo del nivel de
+    alerta. Así `modules/observability` nunca importa `ai.models`
+    directamente, manteniendo la capa `ai` → `modules` en una sola
+    dirección."""
+    _ensure_teacher(user)
+    today = date.today()
+    effective_from = date_from or (today - timedelta(days=90))
+    effective_to = date_to or today
+
+    rows = await ai_repository.summarize_usage(
+        db,
+        user.institution_id,
+        date_from=effective_from,
+        date_to=effective_to,
+        group_by=group_by,
+    )
+    month_to_date = await ai_repository.month_to_date_cost(db, user.institution_id, today=today)
+    settings = get_settings()
+    budget = _budget_status(float(month_to_date), settings.ai_monthly_cost_limit_usd)
+    return rows, budget

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'motion/react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router'
 
 import { Badge } from '../../components/ui/Badge'
 import { Card } from '../../components/ui/Card'

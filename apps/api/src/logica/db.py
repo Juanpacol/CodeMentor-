@@ -17,7 +17,19 @@ class Base(DeclarativeBase):
 
 def create_engine() -> AsyncEngine:
     settings = get_settings()
-    return create_async_engine(settings.database_url, pool_pre_ping=True, echo=False)
+    return create_async_engine(
+        settings.database_url,
+        pool_pre_ping=True,
+        echo=False,
+        # Supabase's Transaction pooler (PgBouncer, puerto 6543 — ver
+        # docs/despliegue.md "Producción") reasigna la conexión de backend en
+        # cada transacción. El cache de sentencias preparadas de asyncpg vive
+        # del lado del cliente y asume una conexión de backend estable: con
+        # el cache activo, la segunda transacción falla con "prepared
+        # statement ... does not exist" porque la prepara contra un backend
+        # que ya no está detrás de la conexión lógica.
+        connect_args={"statement_cache_size": 0},
+    )
 
 
 _engine: AsyncEngine | None = None

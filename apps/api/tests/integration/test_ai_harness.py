@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -39,6 +40,9 @@ async def test_complete_task_returns_text_and_records_interaction(
             model="groq/fake",
             prompt_tokens=20,
             completion_tokens=10,
+            # Modelo desconocido de _MODEL_PRICES_USD_PER_MTOK — este test
+            # verifica que un id sin precio conocido cuesta 0, no revienta.
+            cost_usd=Decimal("0"),
         )
 
     monkeypatch.setattr("logica.ai.harness.harness.router_complete", fake_router_complete)
@@ -64,6 +68,43 @@ async def test_complete_task_returns_text_and_records_interaction(
     assert interactions[0].task == "progressive_hint"
     assert interactions[0].prompt_tokens == 20
     assert interactions[0].blocked_by_guardrail is False
+    assert interactions[0].cost_usd == Decimal("0")
+
+
+async def test_priced_model_persists_nonzero_cost(
+    client: AsyncClient,
+    institution: Institution,
+    redis_client: Redis,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    domain = institution.email_domains[0]
+    await register_and_login(client, email=f"est@{domain}", role="student")
+    user = await get_user_by_email(f"est@{domain}")
+
+    async def fake_router_complete(task: str, messages: list[dict[str, str]]) -> CompletionResult:
+        # groq/llama-3.1-8b-instant SÍ tiene precio en _MODEL_PRICES_USD_PER_MTOK
+        # (0.05, 0.08 USD/MTok) — el harness llama a router.complete(), que es
+        # quien calcula cost_usd; acá solo se simula su resultado ya calculado.
+        return CompletionResult(
+            text="pista",
+            model="groq/llama-3.1-8b-instant",
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+            cost_usd=Decimal("0.13"),
+        )
+
+    monkeypatch.setattr("logica.ai.harness.harness.router_complete", fake_router_complete)
+
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        await complete_task(
+            db, redis_client, task="progressive_hint", user=user, template_vars=_HINT_VARS
+        )
+        await db.commit()
+
+    async with session_factory() as db:
+        interactions = await list_interactions_for_user(db, user.id)
+    assert interactions[0].cost_usd == Decimal("0.13")
 
 
 async def test_second_call_with_same_prompt_hits_cache(
@@ -103,6 +144,13 @@ async def test_second_call_with_same_prompt_hits_cache(
     assert first.from_cache is False
     assert second.from_cache is True
     assert second.text == first.text
+
+    async with session_factory() as db:
+        interactions = await list_interactions_for_user(db, user.id)
+    # El segundo registro (el hit de caché) no llamó a ningún proveedor —
+    # su costo debe quedar en 0, no heredar el de la llamada real.
+    cache_hit = next(i for i in interactions if i.from_cache)
+    assert cache_hit.cost_usd == Decimal("0")
 
 
 async def test_budget_exhausted_blocks_before_calling_router(

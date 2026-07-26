@@ -381,6 +381,161 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/groups/{group_id}/guide-folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Guide Folders */
+        get: operations["list_guide_folders_groups__group_id__guide_folders_get"];
+        put?: never;
+        /** Create Guide Folder */
+        post: operations["create_guide_folder_groups__group_id__guide_folders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guide-folders/{folder_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Guide Folder
+         * @description Activa/apaga la autogeneración de la carpeta (lo que el cron consulta).
+         */
+        patch: operations["update_guide_folder_guide_folders__folder_id__patch"];
+        trace?: never;
+    };
+    "/guide-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Guide Templates */
+        get: operations["list_guide_templates_guide_templates_get"];
+        put?: never;
+        /**
+         * Save Guide Template
+         * @description POST y no PUT también para editar: guardar una plantilla con un nombre que
+         *     ya existe crea la versión N+1 en vez de mutar la anterior (ver
+         *     `service.save_template`), así que siempre es una creación.
+         */
+        post: operations["save_guide_template_guide_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guide-folders/{folder_id}/guides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Guides In Folder */
+        get: operations["list_guides_in_folder_guide_folders__folder_id__guides_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/groups/{group_id}/guides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Published Guides
+         * @description Vista del estudiante: `get_current_user` y no `RequireTeacher`. Solo
+         *     devuelve `published` — un borrador de IA no existe para el estudiante.
+         */
+        get: operations["list_published_guides_groups__group_id__guides_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guides/{guide_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guide
+         * @description También es el poll target mientras `status=generating` — la fila es su
+         *     propio job, no hay tabla de jobs aparte.
+         */
+        get: operations["get_guide_guides__guide_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Guide */
+        patch: operations["update_guide_guides__guide_id__patch"];
+        trace?: never;
+    };
+    "/guides/{guide_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Guide */
+        post: operations["publish_guide_guides__guide_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guides/{guide_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Guide */
+        post: operations["archive_guide_guides__guide_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exercises": {
         parameters: {
             query?: never;
@@ -740,6 +895,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/guides/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Guide
+         * @description 202 y no 201: devuelve la guía en `status=generating` y el worker la
+         *     completa. Generar son N llamadas al modelo (una por sección) con 30 s de
+         *     timeout cada una — en el request path se pasaría del límite de Render.
+         *     El cliente hace polling sobre `GET /guides/{id}`.
+         */
+        post: operations["generate_guide_ai_guides_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/grading/suggest": {
         parameters: {
             query?: never;
@@ -1014,6 +1192,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/observability/ai/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ai Usage */
+        get: operations["get_ai_usage_observability_ai_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1061,16 +1256,61 @@ export interface components {
         };
         /**
          * AgentName
-         * @description The 5 agents from §9.2. Values double as the harness `task` name each
-         *     one drives (ai/harness/router.TASK_TIERS), so there is exactly one
-         *     vocabulary for "which agent/task is this", not two that can drift.
+         * @description The agents from §9.2 plus el creador de guías (Fase 16). Values double as
+         *     the harness `task` name each one drives (ai/harness/router.TASK_TIERS), so
+         *     there is exactly one vocabulary for "which agent/task is this", not two that
+         *     can drift.
+         *
+         *     Ese invariante lo verifica `tests/unit/test_agent_registry.py`: agregar un
+         *     miembro acá obliga a agregar su tier y su plantilla de prompt en el mismo
+         *     commit. No es burocracia — `curriculum_planner` vivió en este enum sin
+         *     plantilla ni tier, así que aparecía en `GET /ai/groups/{id}/agents` como un
+         *     agente activo que el docente podía apagar y que, si algo lo hubiera invocado,
+         *     habría muerto con `TemplateNotFound` en runtime.
          * @enum {string}
          */
-        AgentName: "progressive_hint" | "exercise_generation" | "grading_suggestion" | "summarize_group" | "code_integrity";
+        AgentName: "progressive_hint" | "exercise_generation" | "grading_suggestion" | "summarize_group" | "code_integrity" | "guide_generation";
         /** AgentToggleRequest */
         AgentToggleRequest: {
             /** Enabled */
             enabled: boolean;
+        };
+        /** AiBudgetStatusOut */
+        AiBudgetStatusOut: {
+            /** Month To Date Usd */
+            month_to_date_usd: number;
+            /** Monthly Limit Usd */
+            monthly_limit_usd: number;
+            /** Pct Used */
+            pct_used: number;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "ok" | "warning" | "critical";
+        };
+        /** AiUsageOut */
+        AiUsageOut: {
+            /** Items */
+            items: components["schemas"]["AiUsageRowOut"][];
+            budget: components["schemas"]["AiBudgetStatusOut"];
+        };
+        /** AiUsageRowOut */
+        AiUsageRowOut: {
+            /** Key */
+            key: string;
+            /** Interactions */
+            interactions: number;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Completion Tokens */
+            completion_tokens: number;
+            /** Cost Usd */
+            cost_usd: number;
+            /** Cache Hits */
+            cache_hits: number;
+            /** Blocked */
+            blocked: number;
         };
         /** AnswerSummaryOut */
         AnswerSummaryOut: {
@@ -1545,6 +1785,172 @@ export interface components {
             /** Grade Or Shift */
             grade_or_shift?: string | null;
         };
+        /** GuideGenerateRequest */
+        GuideGenerateRequest: {
+            /**
+             * Folder Id
+             * Format: uuid
+             */
+            folder_id: string;
+            /**
+             * Template Id
+             * Format: uuid
+             */
+            template_id: string;
+            /**
+             * Topic Id
+             * Format: uuid
+             */
+            topic_id: string;
+        };
+        /**
+         * GuideOrigin
+         * @enum {string}
+         */
+        GuideOrigin: "ai" | "manual";
+        /** GuideOut */
+        GuideOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Folder Id
+             * Format: uuid
+             */
+            folder_id: string;
+            /** Template Id */
+            template_id: string | null;
+            /**
+             * Topic Id
+             * Format: uuid
+             */
+            topic_id: string;
+            /** Title */
+            title: string;
+            /** Content Md */
+            content_md: string;
+            origin: components["schemas"]["GuideOrigin"];
+            status: components["schemas"]["GuideStatus"];
+            /** Published At */
+            published_at: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Sources */
+            sources: string[] | null;
+            /** Prompt Version */
+            prompt_version: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * GuideSectionSpec
+         * @description Una sección pedida por el docente. `instructions` es lo que se le pasa al
+         *     modelo como consigna de esa sección, así que su longitud mínima no es
+         *     cosmética: "algo" produce prosa genérica.
+         */
+        GuideSectionSpec: {
+            /** Heading */
+            heading: string;
+            /** Instructions */
+            instructions: string;
+        };
+        /**
+         * GuideStatus
+         * @description `generating` y `failed` existen porque una `Guide` es su propio job de
+         *     polling: `POST /ai/guides/generate` crea la fila y devuelve 202, y el worker
+         *     la completa. No hay tabla `GuideJob` como sí la hay para reportes
+         *     (`reports/models.py::ReportJob`) — ahí el producto es un archivo en disco y
+         *     hace falta una fila aparte para rastrearlo; acá el producto ES la fila.
+         * @enum {string}
+         */
+        GuideStatus: "generating" | "draft" | "published" | "archived" | "failed";
+        /** GuideTemplateCreateRequest */
+        GuideTemplateCreateRequest: {
+            /** Name */
+            name: string;
+            /** Sections */
+            sections: components["schemas"]["GuideSectionSpec"][];
+            /** Tone */
+            tone: string;
+            target_level: components["schemas"]["TopicLevel"];
+        };
+        /** GuideTemplateOut */
+        GuideTemplateOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Sections */
+            sections: components["schemas"]["GuideSectionSpec"][];
+            /** Tone */
+            tone: string;
+            target_level: components["schemas"]["TopicLevel"];
+            /** Version */
+            version: number;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** GuideUpdateRequest */
+        GuideUpdateRequest: {
+            /** Title */
+            title?: string | null;
+            /** Content Md */
+            content_md?: string | null;
+        };
+        /** GuidesFolderCreateRequest */
+        GuidesFolderCreateRequest: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+        };
+        /** GuidesFolderOut */
+        GuidesFolderOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Group Id
+             * Format: uuid
+             */
+            group_id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string | null;
+            /** Auto Generate Template Id */
+            auto_generate_template_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * GuidesFolderUpdateRequest
+         * @description Semántica de asignación, no de merge: `null` apaga la autogeneración. No
+         *     hace falta distinguir "omitido" de "null" porque este PATCH tiene un solo
+         *     campo — omitirlo sería una petición sin efecto, no una intención distinta.
+         */
+        GuidesFolderUpdateRequest: {
+            /** Auto Generate Template Id */
+            auto_generate_template_id?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1710,6 +2116,8 @@ export interface components {
             exercises: components["schemas"]["PendingExerciseOut"][];
             /** Grading Suggestions */
             grading_suggestions: components["schemas"]["PendingGradingSuggestionOut"][];
+            /** Guides */
+            guides: components["schemas"]["GuideOut"][];
         };
         /** PendingExerciseOut */
         PendingExerciseOut: {
@@ -2136,6 +2544,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Sources */
+            sources?: string[];
         };
         /**
          * TutorMessageRole
@@ -2948,6 +3358,350 @@ export interface operations {
             };
         };
     };
+    list_guide_folders_groups__group_id__guide_folders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuidesFolderOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_guide_folder_groups__group_id__guide_folders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuidesFolderCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuidesFolderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_guide_folder_guide_folders__folder_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuidesFolderUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuidesFolderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_guide_templates_guide_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideTemplateOut"][];
+                };
+            };
+        };
+    };
+    save_guide_template_guide_templates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuideTemplateCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_guides_in_folder_guide_folders__folder_id__guides_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_published_guides_groups__group_id__guides_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_guide_guides__guide_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                guide_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_guide_guides__guide_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                guide_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuideUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_guide_guides__guide_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                guide_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_guide_guides__guide_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                guide_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_bank_exercises_get: {
         parameters: {
             query?: {
@@ -3705,6 +4459,39 @@ export interface operations {
             };
         };
     };
+    generate_guide_ai_guides_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuideGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     suggest_grading_ai_grading_suggest_post: {
         parameters: {
             query?: never;
@@ -4237,6 +5024,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditLogPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ai_usage_observability_ai_usage_get: {
+        parameters: {
+            query?: {
+                date_from?: string | null;
+                date_to?: string | null;
+                group_by?: "task" | "model" | "day";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiUsageOut"];
                 };
             };
             /** @description Validation Error */

@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +9,8 @@ from logica.core.permissions import require_role
 from logica.db import get_db
 from logica.modules.observability import service
 from logica.modules.observability.schemas import (
+    AiUsageOut,
+    AiUsageRowOut,
     AuditLogOut,
     AuditLogPageOut,
     ErrorLogOut,
@@ -75,4 +78,32 @@ async def list_audit(
         total=page_info.total,
         page=page_info.page,
         page_size=page_info.page_size,
+    )
+
+
+@router.get("/ai/usage", response_model=AiUsageOut)
+async def get_ai_usage(
+    date_from: date | None = None,
+    date_to: date | None = None,
+    group_by: Literal["task", "model", "day"] = "task",
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+) -> AiUsageOut:
+    rows, budget = await service.summarize_ai_usage_for_user(
+        db, user, date_from=date_from, date_to=date_to, group_by=group_by
+    )
+    return AiUsageOut(
+        items=[
+            AiUsageRowOut(
+                key=row.key,
+                interactions=row.interactions,
+                prompt_tokens=row.prompt_tokens,
+                completion_tokens=row.completion_tokens,
+                cost_usd=float(row.cost_usd),
+                cache_hits=row.cache_hits,
+                blocked=row.blocked,
+            )
+            for row in rows
+        ],
+        budget=budget,
     )

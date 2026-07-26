@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { Tabs } from '../../components/ui/Tabs'
+import { AiUsageTab } from './AiUsageTab'
 import { AuditLogTab } from './AuditLogTab'
 import { ErrorLogTab } from './ErrorLogTab'
 
@@ -18,11 +19,13 @@ export function ActivityLogPage() {
         tabs={[
           { value: 'errores', label: 'Errores' },
           { value: 'auditoria', label: 'Auditoría' },
+          { value: 'ia', label: 'Uso de IA' },
         ]}
       />
 
       {tab === 'errores' && <ErrorLogTab />}
       {tab === 'auditoria' && <AuditLogTab />}
+      {tab === 'ia' && <AiUsageTab />}
     </div>
   )
 }

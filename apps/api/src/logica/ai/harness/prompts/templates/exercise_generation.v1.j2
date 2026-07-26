@@ -1,8 +1,12 @@
 Genera un ejercicio nuevo de tipo "{{ exercise_type }}" para el tema "{{ topic_name }}" ({{ language }}), nivel {{ level }}.
 
 {% if reference_context %}
-Usa como referencia el siguiente material del curso (no lo copies literalmente, úsalo para mantener el estilo y la terminología del docente):
+Usa como referencia el siguiente material del curso (no lo copies literalmente,
+pero no lo contradigas — usa su misma terminología y estilo):
 {{ reference_context }}
+{% else %}
+No hay material de referencia del curso para este tema — usa tu conocimiento
+general de {{ language }}, manteniendo la terminología estándar de PSeInt/Python.
 {% endif %}
 
 {% if similar_exercises %}

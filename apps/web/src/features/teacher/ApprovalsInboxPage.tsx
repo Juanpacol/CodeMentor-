@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { EXERCISE_TYPE_LABELS } from '../../components/exercises/registry'
 import { Badge } from '../../components/ui/Badge'

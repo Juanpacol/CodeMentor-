@@ -1,3 +1,4 @@
+import { AxeBuilder } from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 
 import {
@@ -51,6 +52,11 @@ test('estudiante practica y recibe degradación amable al pedir una pista de IA'
 
   await page.getByText(exerciseTitle).click()
   await expect(page.getByText('Python usa indentación significativa.')).toBeVisible()
+
+  // Ítem 7: axe sobre la pantalla real de práctica (autenticada, con
+  // renderer de ejercicio) — theme.spec.ts ya cubre las páginas públicas.
+  const a11yResults = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+  expect(a11yResults.violations, JSON.stringify(a11yResults.violations, null, 2)).toEqual([])
 
   await page.getByRole('button', { name: 'Verdadero', exact: true }).click()
   await page.getByRole('button', { name: 'Enviar respuesta' }).click()

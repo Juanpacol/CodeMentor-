@@ -1,3 +1,4 @@
+import { AxeBuilder } from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 
 import {
@@ -38,6 +39,12 @@ test('docente crea una evaluación con alcance fijo hasta un tema', async ({ pag
   await page.waitForURL('**/app/docente')
 
   await page.goto('/app/docente/evaluaciones/nueva')
+
+  // Ítem 7: axe sobre el wizard de construcción de evaluaciones (formularios,
+  // selects) — la superficie de UI más compleja de los 3 flujos e2e.
+  const a11yResults = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+  expect(a11yResults.violations, JSON.stringify(a11yResults.violations, null, 2)).toEqual([])
+
   await page.fill('#title', `Quiz E2E2 ${runId}`)
   await page.selectOption('#group', { label: groupName })
   await page.selectOption('#mode', 'fixed')

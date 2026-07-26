@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { Button } from '../ui/Button'
+import { ThemeToggle } from '../ui/ThemeToggle'
 
 export function PublicNav() {
   return (
@@ -9,12 +10,19 @@ export function PublicNav() {
         CodeMentor
       </Link>
       <div className="flex items-center gap-3">
-        <Link to="/login">
+        <ThemeToggle />
+        {/* inline-flex: un <a> por defecto tiene su propia caja de línea
+            (line-height) que no calza con la del <button> que envuelve,
+            dejando una zona de "espacio seguro de clic" angosta entre
+            controles vecinos — Lighthouse lo marca como target-size
+            insuficiente. inline-flex hace que el enlace calce exactamente
+            con el tamaño de su botón. */}
+        <Link to="/login" className="inline-flex">
           <Button variant="ghost" size="sm">
             Iniciar sesión
           </Button>
         </Link>
-        <Link to="/registro">
+        <Link to="/registro" className="inline-flex">
           <Button size="sm">Crear cuenta gratis</Button>
         </Link>
       </div>

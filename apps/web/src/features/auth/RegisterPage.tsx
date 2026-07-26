@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 
 import { AuthLayout } from './AuthLayout'
 import { Button } from '../../components/ui/Button'
@@ -94,7 +94,10 @@ export function RegisterPage() {
       </form>
       <p className="mt-5 text-center text-sm text-ink-secondary">
         ¿Ya tienes cuenta?{' '}
-        <Link to="/login" className="text-primary hover:text-primary-hover">
+        {/* underline: un enlace incrustado en una oración no puede depender
+            solo del color para distinguirse del texto que lo rodea (WCAG
+            1.4.1) — hallado por axe (ítem 7). */}
+        <Link to="/login" className="text-primary-ink underline hover:text-primary-hover">
           Inicia sesión
         </Link>
       </p>

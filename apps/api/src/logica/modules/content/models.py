@@ -54,6 +54,14 @@ class Topic(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
     level: Mapped[TopicLevel] = mapped_column(Enum(TopicLevel, name="topic_level"), nullable=False)
     order_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # Cuántas sesiones de clase estima el docente que toma este tema. Insumo
+    # previsto del planificador curricular de la Fase 15, que quedó a medias:
+    # existen esta columna y las tablas `curriculum_plans`/`curriculum_plan_items`,
+    # pero NINGÚN código las lee ni las escribe todavía — no hay servicio, ni
+    # rutas, ni el `curriculum_scheduler.py` que este comentario nombraba antes de
+    # existir. Se conservan inertes a propósito (borrarlas sería una migración con
+    # riesgo real por beneficio cero); quien retome la fase empieza por acá.
+    estimated_sessions: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class TopicGroupState(UUIDPkMixin, TimestampMixin, Base):

@@ -151,3 +151,61 @@ async def test_topic_scoped_retrieval_includes_topic_and_general_material(
     assert "[Fuente: Material de Ciclos]" in context
     assert "[Fuente: Material general]" in context
     assert "[Fuente: Material de Funciones]" not in context
+
+
+async def test_hybrid_fusion_surfaces_lexical_match_vector_search_would_miss(
+    institution: Institution, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regresión para retriever.py's RRF (líneas 100-108): construye un caso
+    donde el ranking vectorial por sí solo elegiría el documento equivocado
+    (simula un embedding imperfecto), pero el documento correcto contiene la
+    palabra exacta de la consulta y por lo tanto gana la búsqueda de texto
+    completo. Si alguien "simplifica" el retriever a solo vectorial, este test
+    falla."""
+
+    def _vector_for(text: str) -> list[float]:
+        vector = [0.0] * _DIMENSIONS
+        # "Incorrecto" contiene la palabra "vector" -> el embedding fixture
+        # lo marca en dim0, igual que la consulta (ver abajo) — simula un
+        # modelo de embeddings que se equivoca de tema.
+        vector[0 if "vector" in text.lower() else 1] = 1.0
+        return vector
+
+    def _fake_embed_texts(texts: list[str]) -> list[list[float]]:
+        return [_vector_for(t) for t in texts]
+
+    def _fake_embed_query(_text: str) -> list[float]:
+        vector = [0.0] * _DIMENSIONS
+        vector[0] = 1.0
+        return vector
+
+    monkeypatch.setattr("logica.ai.rag.ingestion.embed_texts", _fake_embed_texts)
+    monkeypatch.setattr("logica.ai.rag.retriever.embed_query", _fake_embed_query)
+
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        await ingest_document(
+            db,
+            institution_id=institution.id,
+            title="Correcto",
+            text=(
+                "El comando Repetir permite ejecutar un bloque de instrucciones "
+                "hasta que se cumpla una condición de salida."
+            ),
+        )
+        await ingest_document(
+            db,
+            institution_id=institution.id,
+            title="Incorrecto",
+            text=(
+                "Un vector es una estructura de datos que almacena elementos "
+                "del mismo tipo en posiciones consecutivas."
+            ),
+        )
+        await db.commit()
+
+    async with session_factory() as db:
+        context = await retrieve_context(db, institution.id, "Repetir", top_k=1)
+
+    assert "[Fuente: Correcto]" in context
+    assert "[Fuente: Incorrecto]" not in context

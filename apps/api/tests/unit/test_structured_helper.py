@@ -49,6 +49,7 @@ async def _no_op_complete_task_factory(response_texts: list[str]) -> Any:
         template_vars: dict[str, Any],
         untrusted_input: str | None = None,
         forbid_full_solution: bool = False,
+        prompt_version: int | None = None,
     ) -> CompletionResult:
         text = response_texts[min(calls["count"], len(response_texts) - 1)]
         calls["count"] += 1

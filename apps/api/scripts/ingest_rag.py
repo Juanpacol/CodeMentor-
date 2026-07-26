@@ -18,6 +18,8 @@ import structlog
 
 from logica.ai.rag.ingestion import ingest_document
 from logica.db import get_session_factory
+from logica.modules.content.models import Topic  # noqa: F401
+from logica.modules.users.models import Institution  # noqa: F401
 
 logger = structlog.get_logger()
 

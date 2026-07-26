@@ -20,7 +20,7 @@ from logica.modules.groups.service import get_group_with_access
 from logica.modules.progress.models import AcademicPeriod
 from logica.modules.progress.repository import get_academic_period
 from logica.modules.reports import repository
-from logica.modules.reports.models import ReportFormat, ReportJob
+from logica.modules.reports.models import ReportFormat, ReportJob, ReportStatus
 from logica.modules.reports.repository import GradebookStudentRow, StudentReportRow
 from logica.modules.users.models import User
 
@@ -146,6 +146,23 @@ async def generate_group_report(db: AsyncSession, report_job_id: uuid.UUID) -> N
     if job is None:
         return
 
+    if job.status == ReportStatus.done:
+        logger.info("report_generation_skipped_already_done", report_job_id=str(report_job_id))
+        return
+    if job.status == ReportStatus.processing:
+        # No lease/heartbeat exists on arq jobs here (no max_tries/timeout
+        # configured in workers/settings.py), so "processing" can mean either
+        # a genuinely concurrent run or a worker that crashed mid-job and
+        # never got the chance to mark itself failed. Regenerating is safe —
+        # the output path is keyed by job.id, so a real double-run just
+        # overwrites the same file with equivalent content — and refusing to
+        # proceed would strand crashed jobs forever with no recovery path.
+        logger.warning(
+            "report_generation_concurrent_or_stuck_detected",
+            report_job_id=str(report_job_id),
+            updated_at=job.updated_at.isoformat(),
+        )
+
     await repository.mark_processing(db, job)
     await db.commit()
 
@@ -177,8 +194,19 @@ async def generate_group_report(db: AsyncSession, report_job_id: uuid.UUID) -> N
 
         await repository.mark_done(db, job, str(file_path))
         await db.commit()
+        logger.info(
+            "report_generation_completed",
+            report_job_id=str(report_job_id),
+            group_id=str(job.group_id),
+            format=job.format.value,
+        )
     except Exception as exc:
-        logger.exception("report_generation_failed", report_job_id=str(report_job_id))
+        logger.exception(
+            "report_generation_failed",
+            report_job_id=str(report_job_id),
+            group_id=str(job.group_id),
+            format=job.format.value,
+        )
         await repository.mark_failed(db, job, str(exc))
         await db.commit()
 

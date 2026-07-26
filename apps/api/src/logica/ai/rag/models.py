@@ -1,7 +1,7 @@
 import uuid
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,6 +15,9 @@ class RagDocument(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
     "recuperar contexto"): PSeInt reference sheets, teacher notes, etc."""
 
     __tablename__ = "rag_documents"
+    __table_args__ = (
+        UniqueConstraint("institution_id", "title", name="uq_rag_document_institution_title"),
+    )
 
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     source_type: Mapped[str] = mapped_column(String(50), nullable=False, default="teacher_material")

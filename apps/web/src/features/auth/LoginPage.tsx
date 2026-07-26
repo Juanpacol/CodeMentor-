@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router'
 
 import { AuthLayout } from './AuthLayout'
 import { Button } from '../../components/ui/Button'
@@ -66,7 +66,7 @@ export function LoginPage() {
         <Link to="/recuperar" className="text-ink-secondary hover:text-ink">
           ¿Olvidaste tu contraseña?
         </Link>
-        <Link to="/registro" className="text-primary hover:text-primary-hover">
+        <Link to="/registro" className="text-primary-ink hover:text-primary-hover">
           Crear cuenta
         </Link>
       </div>

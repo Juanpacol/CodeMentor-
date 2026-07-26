@@ -15,7 +15,7 @@ const tints: Record<TintColor, string> = {
   lavender: 'bg-tint-lavender text-tint-lavender-fg',
   sky: 'bg-tint-sky text-tint-sky-fg',
   yellow: 'bg-tint-yellow text-tint-yellow-fg',
-  purple: 'bg-primary text-white',
+  purple: 'bg-primary text-on-primary',
   neutral: 'bg-overlay text-ink-secondary',
 }
 

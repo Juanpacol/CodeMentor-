@@ -48,6 +48,7 @@ def trace_completion(
     completion_tokens: int,
     from_cache: bool,
     student_alias: str,
+    prompt_version: int = 1,
 ) -> None:
     client = _get_client()
     if client is None:
@@ -61,7 +62,11 @@ def trace_completion(
             output=output,
             model=model,
             usage_details={"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
-            metadata={"from_cache": from_cache, "student_alias": student_alias},
+            metadata={
+                "from_cache": from_cache,
+                "student_alias": student_alias,
+                "prompt_version": prompt_version,
+            },
         )
         generation.end()
     except Exception as exc:  # noqa: BLE001 - tracing must never break a request

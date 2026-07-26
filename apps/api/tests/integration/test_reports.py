@@ -4,6 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from logica.db import get_session_factory
+from logica.modules.reports.models import ReportStatus
 from logica.modules.reports.repository import get_report_job
 from logica.modules.reports.service import generate_group_report
 from logica.modules.users.models import Institution
@@ -120,6 +121,81 @@ async def test_report_requires_valid_period(client: AsyncClient, institution: In
         headers=auth_headers(teacher_access),
     )
     assert resp.status_code == 404
+
+
+async def test_generate_group_report_is_noop_when_already_done(
+    client: AsyncClient, institution: Institution
+) -> None:
+    """A second run for an already-`done` job must not rebuild the file — the
+    arq job could fire twice (retry, duplicate enqueue) for the same
+    report_job_id, and re-running should be a safe no-op, not wasted work."""
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    group = await create_group(client, teacher_access)
+
+    created = await client.post(
+        f"/groups/{group['id']}/reports",
+        json={"format": "xlsx"},
+        headers=auth_headers(teacher_access),
+    )
+    job_id = uuid.UUID(created.json()["id"])
+
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        await generate_group_report(db, job_id)
+        await db.commit()
+
+    async with session_factory() as db:
+        job = await get_report_job(db, job_id)
+        assert job is not None
+        first_completed_at = job.completed_at
+        first_file_path = job.file_path
+
+    async with session_factory() as db:
+        await generate_group_report(db, job_id)
+        await db.commit()
+
+    async with session_factory() as db:
+        job = await get_report_job(db, job_id)
+        assert job is not None
+        assert job.completed_at == first_completed_at
+        assert job.file_path == first_file_path
+
+
+async def test_generate_group_report_processing_state_still_completes(
+    client: AsyncClient, institution: Institution
+) -> None:
+    """A job stuck in `processing` (e.g. a worker crashed mid-run) must still
+    be regenerated on the next attempt — there's no lease/heartbeat to tell a
+    genuinely stuck job apart from a concurrent one, so refusing to proceed
+    would strand it forever."""
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    group = await create_group(client, teacher_access)
+
+    created = await client.post(
+        f"/groups/{group['id']}/reports",
+        json={"format": "xlsx"},
+        headers=auth_headers(teacher_access),
+    )
+    job_id = uuid.UUID(created.json()["id"])
+
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        job = await get_report_job(db, job_id)
+        assert job is not None
+        job.status = ReportStatus.processing
+        await db.commit()
+
+    async with session_factory() as db:
+        await generate_group_report(db, job_id)
+        await db.commit()
+
+    async with session_factory() as db:
+        job = await get_report_job(db, job_id)
+        assert job is not None
+        assert job.status == ReportStatus.done
+        assert job.file_path is not None
 
 
 @pytest.mark.pdf

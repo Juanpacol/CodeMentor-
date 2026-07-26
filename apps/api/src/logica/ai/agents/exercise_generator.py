@@ -7,6 +7,7 @@ and publishes it (via the existing PATCH /exercises/{id})."""
 import uuid
 from typing import Any
 
+import structlog
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,8 @@ from logica.modules.exercises.models import Exercise, ExerciseOrigin, ExerciseSt
 from logica.modules.exercises.repository import list_exercises
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.users.models import Role, User
+
+logger = structlog.get_logger()
 
 _SCHEMA_HINTS: dict[ExerciseType, str] = {
     ExerciseType.true_false: '{"title": "...", "content": {"statement": "...", "answer": true}}',
@@ -115,4 +118,11 @@ async def generate_exercise_draft(
     db.add(exercise)
     await db.flush()
     await db.refresh(exercise)
+    logger.info(
+        "exercise_draft_persisted",
+        exercise_id=str(exercise.id),
+        group_id=str(group_id),
+        topic_id=str(topic_id),
+        exercise_type=exercise_type.value,
+    )
     return exercise

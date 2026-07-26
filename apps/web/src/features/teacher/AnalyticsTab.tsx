@@ -1,11 +1,36 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { BarList, type BarListItem } from '../../components/ui/BarList'
+import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Callout } from '../../components/ui/Callout'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { apiClient, isAiUnavailable, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
+import type { components } from '../../lib/api/schema'
+
+type LaggingStudentOut = components['schemas']['LaggingStudentOut']
+
+/** Peor primero: un docente revisando rezagados quiere ver primero a quien
+ * más necesita atención, no un orden alfabético/de llegada. */
+function toBarListItems(students: LaggingStudentOut[]): BarListItem[] {
+  return [...students]
+    .sort((a, b) => (a.accuracy ?? -1) - (b.accuracy ?? -1))
+    .map((s) => ({
+      key: s.student_id,
+      label: s.full_name,
+      value: s.accuracy,
+      hint: (
+        <>
+          <span>{s.reason}</span>
+          {s.days_since_last_activity !== null && (
+            <Badge tint="rose">{s.days_since_last_activity}d sin actividad</Badge>
+          )}
+        </>
+      ),
+    }))
+}
 
 export function AnalyticsTab({ groupId }: { groupId: string }) {
   const [summary, setSummary] = useState<string | null>(null)
@@ -61,17 +86,7 @@ export function AnalyticsTab({ groupId }: { groupId: string }) {
         {!isLoading && lagging?.length === 0 && (
           <EmptyState emoji="🎉" title="Nadie está rezagado por ahora" />
         )}
-        <div className="flex flex-col gap-2">
-          {lagging?.map((student) => (
-            <div
-              key={student.student_id}
-              className="flex items-center justify-between rounded-card border border-hairline bg-raised px-4 py-3"
-            >
-              <span className="text-sm text-ink">{student.full_name}</span>
-              <span className="text-xs text-ink-secondary">{student.reason}</span>
-            </div>
-          ))}
-        </div>
+        {lagging && lagging.length > 0 && <BarList items={toBarListItems(lagging)} />}
       </div>
     </div>
   )

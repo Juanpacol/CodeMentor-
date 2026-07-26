@@ -1,0 +1,30 @@
+name: Propuesta de feature
+description: Proponer una mejora o funcionalidad nueva
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qué problema resuelve
+      description: ¿Qué necesidad real motiva esto? Evita saltar directo a la solución.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta
+      description: Cómo imaginas que funcionaría.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: Opcional — qué otras formas de resolverlo evaluaste y por qué esta.
+  - type: checkboxes
+    id: adr-check
+    attributes:
+      label: Antes de proponer
+      options:
+        - label: Revisé si esto contradice una decisión ya documentada en docs/adr/
+          required: true

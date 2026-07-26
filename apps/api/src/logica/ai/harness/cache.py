@@ -12,14 +12,20 @@ from redis.asyncio import Redis
 _CACHE_TTL_SECONDS = 60 * 60 * 24  # a day is enough: content changes invalidate naturally
 
 
-def _cache_key(task: str, prompt: str) -> str:
+def _cache_key(task: str, prompt: str, version: int = 1) -> str:
+    # La versión entra en la clave: dos versiones de una plantilla pueden
+    # renderizar texto idéntico para un mismo input (una edición de solo
+    # comentarios/espacios), y sin esto una eval que compara ambas versiones
+    # se contaminaría con la respuesta cacheada de la otra.
     digest = hashlib.sha256(prompt.encode()).hexdigest()
-    return f"ai_cache:{task}:{digest}"
+    return f"ai_cache:{task}:v{version}:{digest}"
 
 
-async def get_cached_response(redis: Redis, task: str, prompt: str) -> str | None:
-    return cast(str | None, await redis.get(_cache_key(task, prompt)))
+async def get_cached_response(redis: Redis, task: str, prompt: str, version: int = 1) -> str | None:
+    return cast(str | None, await redis.get(_cache_key(task, prompt, version)))
 
 
-async def set_cached_response(redis: Redis, task: str, prompt: str, response: str) -> None:
-    await redis.set(_cache_key(task, prompt), response, ex=_CACHE_TTL_SECONDS)
+async def set_cached_response(
+    redis: Redis, task: str, prompt: str, response: str, version: int = 1
+) -> None:
+    await redis.set(_cache_key(task, prompt, version), response, ex=_CACHE_TTL_SECONDS)

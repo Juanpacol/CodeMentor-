@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router-dom'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RequireAuth, RequireRole } from './RequireAuth'
@@ -11,6 +11,7 @@ function renderWithRouter(initialPath: string) {
     [
       { path: '/login', element: <div>Pantalla de login</div> },
       { path: '/app', element: <div>Área de estudiante</div> },
+      { path: '/app/docente', element: <div>Área de docente</div> },
       {
         element: <RequireAuth />,
         children: [
@@ -18,6 +19,10 @@ function renderWithRouter(initialPath: string) {
           {
             element: <RequireRole roles={['teacher']} />,
             children: [{ path: '/solo-docente', element: <div>Panel docente</div> }],
+          },
+          {
+            element: <RequireRole roles={['student']} />,
+            children: [{ path: '/solo-estudiante', element: <div>Panel estudiante</div> }],
           },
         ],
       },
@@ -94,5 +99,21 @@ describe('RequireRole', () => {
 
     renderWithRouter('/solo-docente')
     await waitFor(() => expect(screen.getByText('Panel docente')).toBeInTheDocument())
+  })
+
+  it('redirects a teacher away from a student-only route to their own dashboard', async () => {
+    // Antes de este fix, un docente en una URL de estudiante caía siempre en
+    // '/app' — que no es una ruta válida para docentes (la suya es
+    // '/app/docente') y terminaba en la pantalla del catch-all.
+    setTokens('valid-access', 'valid-refresh')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ id: '1', role: 'teacher' }), { status: 200 }),
+      ),
+    )
+
+    renderWithRouter('/solo-estudiante')
+    await waitFor(() => expect(screen.getByText('Área de docente')).toBeInTheDocument())
   })
 })

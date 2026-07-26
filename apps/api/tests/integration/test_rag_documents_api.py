@@ -2,7 +2,9 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from logica.ai.rag.ingestion import ingest_document
 from logica.ai.rag.models import RagChunk, RagDocument
+from logica.core.errors import ServiceUnavailableError
 from logica.db import get_session_factory
 from logica.modules.users.models import Institution
 from tests.integration.conftest import (
@@ -140,6 +142,111 @@ async def test_delete_document_removes_chunks(
         )
     assert remaining_doc is None
     assert remaining_chunks == []
+
+
+async def test_reupload_same_title_replaces_document_not_duplicates(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+
+    first = await client.post(
+        "/ai/rag/documents",
+        files={"file": ("a.md", b"Version inicial del documento.", "text/markdown")},
+        data={"title": "Guia reutilizable"},
+        headers=auth_headers(teacher_access),
+    )
+    assert first.status_code == 201, first.text
+    first_id = first.json()["id"]
+
+    second = await client.post(
+        "/ai/rag/documents",
+        files={"file": ("a.md", b"Version actualizada, distinto contenido.", "text/markdown")},
+        data={"title": "Guia reutilizable"},
+        headers=auth_headers(teacher_access),
+    )
+    assert second.status_code == 201, second.text
+    assert second.json()["id"] == first_id
+
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        documents = (
+            (await db.execute(select(RagDocument).where(RagDocument.title == "Guia reutilizable")))
+            .scalars()
+            .all()
+        )
+        chunks = (
+            (await db.execute(select(RagChunk).where(RagChunk.document_id == first_id)))
+            .scalars()
+            .all()
+        )
+    assert len(documents) == 1
+    assert chunks
+    assert all("actualizada" in c.content for c in chunks)
+
+
+async def test_partial_chunk_failure_still_creates_document_with_surviving_chunks(
+    institution: Institution, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _flaky_embed_texts(texts: list[str]) -> list[list[float]]:
+        if any("ROMPER" in t for t in texts):
+            raise RuntimeError("embedding backend failure")
+        return [[0.0] * _DIMENSIONS for _ in texts]
+
+    monkeypatch.setattr("logica.ai.rag.ingestion.embed_texts", _flaky_embed_texts)
+
+    text = "Parrafo valido uno.\n\nROMPER este parrafo.\n\nParrafo valido dos."
+
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        document = await ingest_document(
+            db,
+            institution_id=institution.id,
+            title="Con chunk fallido",
+            text=text,
+            chunk_max_chars=10,
+            chunk_overlap_chars=0,
+        )
+        await db.commit()
+        document_id = document.id
+
+    async with session_factory() as db:
+        chunks = (
+            (await db.execute(select(RagChunk).where(RagChunk.document_id == document_id)))
+            .scalars()
+            .all()
+        )
+    assert chunks
+    assert all("ROMPER" not in c.content for c in chunks)
+
+
+async def test_all_chunks_failing_returns_503(
+    institution: Institution, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _always_fail_embed_texts(texts: list[str]) -> list[list[float]]:
+        raise RuntimeError("embedding backend down")
+
+    monkeypatch.setattr("logica.ai.rag.ingestion.embed_texts", _always_fail_embed_texts)
+
+    session_factory = get_session_factory()
+    with pytest.raises(ServiceUnavailableError):
+        async with session_factory() as db:
+            await ingest_document(
+                db,
+                institution_id=institution.id,
+                title="Todo falla",
+                text="Contenido que nunca se va a embeber.",
+            )
+            # Sin commit: igual que el router, que solo comitea tras un
+            # retorno exitoso — la sesión revierte al cerrarse.
+
+    async with session_factory() as db:
+        remaining = (
+            (await db.execute(select(RagDocument).where(RagDocument.title == "Todo falla")))
+            .scalars()
+            .all()
+        )
+    assert remaining == []
 
 
 async def test_student_forbidden_from_rag_document_endpoints(

@@ -16,11 +16,11 @@ const base =
   'transition-colors duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-50'
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-primary text-white hover:bg-primary-hover active:bg-primary-pressed',
+  primary: 'bg-primary text-on-primary hover:bg-primary-hover active:bg-primary-pressed',
   secondary:
     'bg-transparent text-ink border border-hairline-strong hover:bg-hover',
   ghost: 'bg-transparent text-ink hover:bg-hover',
-  danger: 'bg-error text-white hover:brightness-110',
+  danger: 'bg-error text-on-primary hover:brightness-110',
 }
 
 const sizes: Record<Size, string> = {

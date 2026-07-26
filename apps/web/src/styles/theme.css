@@ -3,10 +3,35 @@
 
 /*
  * "Notion night" — paleta derivada de notion.design.md (marketing claro de
- * Notion) trasladada al modo nocturno real de la app. Solo modo oscuro: no
- * hay toggle, así que estos tokens son los únicos que existen.
+ * Notion) trasladada al modo nocturno real de la app. Es el set OSCURO por
+ * defecto; el set claro vive más abajo, fuera de toda @layer, en
+ * `[data-theme='light']` — así gana sobre `@layer theme` sin depender de
+ * especificidad (ver nota de cascada abajo).
+ *
+ * `static` (no `inline`): `inline` hornearía estos valores en cada utilidad
+ * en build time, lo que rompería el theming en runtime (el toggle no podría
+ * cambiar nada). `static` garantiza que cada token se emita como custom
+ * property real, se use o no en una utilidad — necesario para que el toggle
+ * y los gráficos (que leen tokens vía JS) siempre encuentren la variable.
  */
-@theme {
+@theme static {
+  /* --- independientes de modo --- */
+  --radius-btn: 8px;
+  --radius-card: 12px;
+
+  --font-sans: 'Inter Variable', -apple-system, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+
+  /* Texto sobre `bg-primary` (botones/badges primarios): blanco en ambos
+     modos, por eso no está duplicado en el bloque claro de abajo. */
+  --color-on-primary: #ffffff;
+
+  /* Sombra de la tarjeta hero de LandingPage — vive siempre en su propio
+     subárbol `data-theme="dark"` (ver LandingPage.tsx), así que no necesita
+     una variante clara. */
+  --shadow-card: 0 24px 48px -8px rgba(0, 0, 0, 0.5);
+
+  /* --- dependientes de modo: OSCURO (default) --- */
   --color-canvas: #191919;
   --color-surface: #202020;
   --color-raised: #252525;
@@ -16,12 +41,18 @@
   --color-hairline-strong: rgb(255 255 255 / 0.16);
 
   --color-ink: rgb(255 255 255 / 0.81);
-  --color-ink-secondary: rgb(255 255 255 / 0.46);
+  --color-ink-secondary: rgb(255 255 255 / 0.5);
   --color-ink-muted: rgb(255 255 255 / 0.28);
 
   --color-primary: #5645d4;
   --color-primary-hover: #6a5ae0;
   --color-primary-pressed: #4534b3;
+  /* Variante de `primary` segura como texto (no como fondo) sobre
+     superficies oscuras: #5645d4 solo da 2.33:1 sobre --color-raised,
+     muy por debajo de AA (4.5:1) — hallado por axe (ítem 7) en los
+     enlaces "Crear cuenta"/"Iniciar sesión". Este tono más claro da
+     ~4.97:1 conservando el mismo matiz. */
+  --color-primary-ink: #9086ec;
   --color-navy: #0a1530;
   --color-navy-deep: #070f24;
 
@@ -42,20 +73,180 @@
   --color-warning: #d9822b;
   --color-error: #eb5757;
 
-  --radius-btn: 8px;
-  --radius-card: 12px;
+  --color-scrim: rgb(0 0 0 / 0.6);
 
-  --font-sans: 'Inter Variable', -apple-system, system-ui, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  /* Paleta categórica para gráficos (Fase 3, ítem 4) — validada con el
+     script de la skill dataviz, NO estimada a ojo: banda de luminosidad,
+     piso de chroma, separación CVD (ΔE 8.4 protan/tritan) y ΔE de visión
+     normal (19.3) todos en PASS contra --color-raised. El modo claro tiene
+     WARN de contraste en 3 de 6 slots (<3:1) — por eso todo gráfico lleva
+     etiqueta de valor visible y tabla `<details>` de respaldo, nunca
+     opcional. No reusar --color-tint-*-fg como paleta de series: falla
+     chroma y CVD (mint↔peach ΔE 3.6). */
+  --color-chart-1: #3987e5;
+  --color-chart-2: #d95926;
+  --color-chart-3: #199e70;
+  --color-chart-4: #c98500;
+  --color-chart-5: #d55181;
+  --color-chart-6: #9085e9;
+  --color-chart-grid: rgb(255 255 255 / 0.094);
+  --color-chart-axis: rgb(255 255 255 / 0.46);
+
+  /* Rampa ordinal (un solo tono, luminosidad monótona) para las bandas de
+     nota del libro de calificaciones — ordinal, no categórica, porque ahí
+     el orden es el significado, no la identidad. Validada con --ordinal:
+     monotonía, separación ΔL >= 0.06 y contraste del extremo más cercano a
+     la superficie (>= 2:1). */
+  --color-ordinal-1: #86b6ef;
+  --color-ordinal-2: #5598e7;
+  --color-ordinal-3: #2a78d6;
+  --color-ordinal-4: #1c5cab;
+}
+
+/*
+ * Overrides de modo, sin capa (unlayered). Tailwind emite `@layer theme,
+ * base, components, utilities;` — cualquier regla fuera de una @layer gana
+ * sobre TODAS ellas, sin importar especificidad. Por eso esto funciona sin
+ * tener que pelear contra `@layer theme`.
+ *
+ * Selector como LISTA (`:root[data-theme=...], [data-theme=...]`) en vez de
+ * solo `:root`: permite theming por subárbol (`<section data-theme="dark">`
+ * en LandingPage, y la hoja de impresión del ítem 8) — un descendiente con su
+ * propio `data-theme` redeclara las custom properties directamente sobre sí
+ * mismo, así que gana por herencia sin importar el tema del ancestro.
+ */
+:root {
+  color-scheme: dark;
+}
+
+:root[data-theme='light'],
+[data-theme='light'] {
+  color-scheme: light;
+
+  --color-canvas: #ffffff;
+  --color-surface: #f7f7f5;
+  --color-raised: #ffffff;
+  --color-overlay: #efeeec;
+  --color-hover: rgb(0 0 0 / 0.045);
+  --color-hairline: rgb(0 0 0 / 0.09);
+  --color-hairline-strong: rgb(0 0 0 / 0.16);
+
+  --color-ink: #37352f;
+  --color-ink-secondary: #6b6a67;
+  --color-ink-muted: #91908d;
+
+  --color-primary: #5645d4;
+  --color-primary-hover: #6a5ae0;
+  --color-primary-pressed: #4534b3;
+  /* En claro, --color-primary (#5645d4) ya da 6.57:1 sobre blanco — no
+     necesita una variante distinta para texto. */
+  --color-primary-ink: #5645d4;
+  --color-navy: #e8ecf5;
+  --color-navy-deep: #dde3f0;
+
+  --color-tint-peach: #faebdd;
+  --color-tint-peach-fg: #8a4b1f;
+  --color-tint-rose: #f6dfec;
+  --color-tint-rose-fg: #9c1f5f;
+  --color-tint-mint: #ddedea;
+  --color-tint-mint-fg: #1b5e43;
+  --color-tint-lavender: #eae4f4;
+  --color-tint-lavender-fg: #463a9e;
+  --color-tint-sky: #ddebf1;
+  --color-tint-sky-fg: #1b4f7a;
+  --color-tint-yellow: #fbf3db;
+  --color-tint-yellow-fg: #6f5203;
+
+  --color-success: #1f7a45;
+  --color-warning: #8a5300;
+  --color-error: #c0392b;
+
+  --color-scrim: rgb(0 0 0 / 0.35);
+
+  --color-chart-1: #2a78d6;
+  --color-chart-2: #eb6834;
+  --color-chart-3: #1baf7a;
+  --color-chart-4: #eda100;
+  --color-chart-5: #e87ba4;
+  --color-chart-6: #4a3aa7;
+  --color-chart-grid: rgb(0 0 0 / 0.09);
+  --color-chart-axis: #6b6a67;
+
+  --color-ordinal-1: #86b6ef;
+  --color-ordinal-2: #5598e7;
+  --color-ordinal-3: #256abf;
+  --color-ordinal-4: #104281;
+}
+
+/* Redeclarado explícito (no solo el default de @theme) para que un subárbol
+   `data-theme="dark"` anidado dentro de un documento en modo claro recupere
+   los valores oscuros — una custom property declarada directamente sobre un
+   elemento siempre gana por herencia, sin pelear contra el ancestro. */
+:root[data-theme='dark'],
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-canvas: #191919;
+  --color-surface: #202020;
+  --color-raised: #252525;
+  --color-overlay: #2f2f2f;
+  --color-hover: rgb(255 255 255 / 0.055);
+  --color-hairline: rgb(255 255 255 / 0.094);
+  --color-hairline-strong: rgb(255 255 255 / 0.16);
+
+  --color-ink: rgb(255 255 255 / 0.81);
+  --color-ink-secondary: rgb(255 255 255 / 0.5);
+  --color-ink-muted: rgb(255 255 255 / 0.28);
+
+  --color-primary: #5645d4;
+  --color-primary-hover: #6a5ae0;
+  --color-primary-pressed: #4534b3;
+  /* Variante de `primary` segura como texto (no como fondo) sobre
+     superficies oscuras: #5645d4 solo da 2.33:1 sobre --color-raised,
+     muy por debajo de AA (4.5:1) — hallado por axe (ítem 7) en los
+     enlaces "Crear cuenta"/"Iniciar sesión". Este tono más claro da
+     ~4.97:1 conservando el mismo matiz. */
+  --color-primary-ink: #9086ec;
+  --color-navy: #0a1530;
+  --color-navy-deep: #070f24;
+
+  --color-tint-peach: #3d2a1f;
+  --color-tint-peach-fg: #ffb38a;
+  --color-tint-rose: #3a2230;
+  --color-tint-rose-fg: #ff9ec9;
+  --color-tint-mint: #1e3328;
+  --color-tint-mint-fg: #6fd39a;
+  --color-tint-lavender: #2a2440;
+  --color-tint-lavender-fg: #b3a5f0;
+  --color-tint-sky: #1e2c3d;
+  --color-tint-sky-fg: #7fb8e8;
+  --color-tint-yellow: #3a331c;
+  --color-tint-yellow-fg: #e8cf6f;
+
+  --color-success: #4dab6d;
+  --color-warning: #d9822b;
+  --color-error: #eb5757;
+
+  --color-scrim: rgb(0 0 0 / 0.6);
+
+  --color-chart-1: #3987e5;
+  --color-chart-2: #d95926;
+  --color-chart-3: #199e70;
+  --color-chart-4: #c98500;
+  --color-chart-5: #d55181;
+  --color-chart-6: #9085e9;
+  --color-chart-grid: rgb(255 255 255 / 0.094);
+  --color-chart-axis: rgb(255 255 255 / 0.46);
+
+  --color-ordinal-1: #86b6ef;
+  --color-ordinal-2: #5598e7;
+  --color-ordinal-3: #2a78d6;
+  --color-ordinal-4: #1c5cab;
 }
 
 @layer base {
   * {
     border-color: var(--color-hairline);
-  }
-
-  html {
-    color-scheme: dark;
   }
 
   body {
@@ -76,6 +267,103 @@
   }
 }
 
+/* Tipografía del contenido de una guía (components/ui/Markdown.tsx). Escrito a
+ * mano y no con `@tailwindcss/typography`: el plugin trae su propia escala y su
+ * propio set de variables `--tw-prose-*`, que habría que remapear a los tokens
+ * de `@theme static` de este archivo para que el modo claro/oscuro siguiera
+ * funcionando — más configuración que estas ~30 líneas. Mismo criterio que los
+ * gráficos SVG hand-rolled del repo.
+ *
+ * Va fuera de `@layer base` a propósito: son estilos de componente y deben poder
+ * ser sobreescritos por utilidades de Tailwind en el punto de uso. */
+.guide-content {
+  color: var(--color-ink);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.guide-content > * + * {
+  margin-top: 1rem;
+}
+
+.guide-content h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 1.75rem;
+}
+
+.guide-content h3,
+.guide-content h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+}
+
+.guide-content ul,
+.guide-content ol {
+  padding-left: 1.5rem;
+}
+
+.guide-content ul {
+  list-style: disc;
+}
+
+.guide-content ol {
+  list-style: decimal;
+}
+
+.guide-content li + li {
+  margin-top: 0.25rem;
+}
+
+.guide-content a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.guide-content code {
+  background: var(--color-raised);
+  border-radius: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  padding: 0.125rem 0.3rem;
+}
+
+.guide-content pre {
+  background: var(--color-raised);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-card);
+  /* Un bloque de código largo se desplaza dentro de su caja; el body de la
+   * página nunca debe desplazarse en horizontal. */
+  overflow-x: auto;
+  padding: 0.875rem 1rem;
+}
+
+.guide-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.guide-content blockquote {
+  border-left: 3px solid var(--color-hairline);
+  color: var(--color-ink-secondary);
+  padding-left: 1rem;
+}
+
+.guide-content table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+}
+
+.guide-content th,
+.guide-content td {
+  border: 1px solid var(--color-hairline);
+  padding: 0.375rem 0.625rem;
+  text-align: left;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -84,5 +372,64 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Impresión (Fase 3, ítem 8) — un tercer "modo", independiente del
+ * data-theme actual: siempre claro, sin importar si el usuario estaba en
+ * oscuro. Cada token va con `!important` porque el bloque activo
+ * (`[data-theme='dark']` u oscuro por defecto) puede tener MÁS
+ * especificidad que un `:root` suelto — pelear esa comparación selector por
+ * selector es frágil; `!important` en variables es el escape válido para
+ * "este contexto siempre gana, sin importar qué más aplique".
+ */
+@media print {
+  :root {
+    color-scheme: light !important;
+
+    --color-canvas: #ffffff !important;
+    --color-surface: #f7f7f5 !important;
+    --color-raised: #ffffff !important;
+    --color-overlay: #efeeec !important;
+    --color-hairline: rgb(0 0 0 / 0.09) !important;
+    --color-hairline-strong: rgb(0 0 0 / 0.16) !important;
+
+    --color-ink: #37352f !important;
+    --color-ink-secondary: #6b6a67 !important;
+    --color-ink-muted: #91908d !important;
+
+    --color-primary: #5645d4 !important;
+    --color-primary-ink: #5645d4 !important;
+
+    --color-chart-1: #2a78d6 !important;
+    --color-chart-2: #eb6834 !important;
+    --color-chart-3: #1baf7a !important;
+    --color-chart-4: #eda100 !important;
+    --color-chart-5: #e87ba4 !important;
+    --color-chart-6: #4a3aa7 !important;
+    --color-chart-grid: rgb(0 0 0 / 0.09) !important;
+    --color-chart-axis: #6b6a67 !important;
+  }
+
+  /* Furniture de navegación — sin sentido en papel. */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Las tarjetas no deberían partirse a la mitad entre dos páginas. */
+  .rounded-card {
+    break-inside: avoid;
+  }
+
+  /* El contenido de un <details> cerrado se fuerza a abierto vía JS, no CSS
+     — `display: block !important` sobre sus hijos NO alcanza a revertir el
+     colapso nativo del navegador (verificado empíricamente en Chromium: el
+     contenido sigue sin pintarse). Ver src/lib/print.ts, que escucha
+     `beforeprint`/`afterprint` y marca/desmarca `open` en cada <details>.
+     Acá solo se oculta el <summary> — ya no hay nada que "hacer clic" en
+     papel una vez que el JS forzó la apertura. */
+  details > summary {
+    display: none !important;
   }
 }

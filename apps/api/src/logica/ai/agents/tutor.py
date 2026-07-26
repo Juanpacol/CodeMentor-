@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from logica.ai.agents.config_service import ensure_agent_enabled
 from logica.ai.agents.models import AgentName, TutorMessage, TutorMessageRole
 from logica.ai.agents.repository import create_tutor_message, list_tutor_messages
+from logica.ai.rag.retriever import retrieve
 from logica.ai.skills.progressive_hint import generate_progressive_hint
-from logica.ai.skills.retrieve_context import retrieve_context
 from logica.core.errors import NotFoundError, PermissionDeniedError
 from logica.modules.content.models import TopicGroupStateValue
 from logica.modules.content.repository import get_topic, list_topic_group_states_for_group
@@ -63,12 +63,18 @@ async def ask_hint(
         if topic is not None:
             topic_name = topic.name
 
-    reference_context = await retrieve_context(
+    # Se llama retrieve() directamente (no el skill retrieve_context) para
+    # quedarnos también con RetrievedChunk.document_title y poder persistir de
+    # qué material salió cada pista (atribución de fuente hacia el estudiante).
+    hits = await retrieve(
         db,
         student.institution_id,
         exercise.content.get("statement", exercise.title),
+        top_k=3,
         topic_id=topic_ids[0] if topic_ids else None,
     )
+    reference_context = "\n\n".join(f"[Fuente: {h.document_title}]\n{h.content}" for h in hits)
+    sources = sorted({h.document_title for h in hits})
 
     await create_tutor_message(
         db,
@@ -103,6 +109,7 @@ async def ask_hint(
             exercise_id=exercise_id,
             role=TutorMessageRole.tutor,
             content=hint_text,
+            sources=sources or None,
         ),
     )
 

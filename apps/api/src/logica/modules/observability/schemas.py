@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -43,3 +44,30 @@ class AuditLogPageOut(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# --- Ítem 14: dashboard de costo de IA ---
+
+
+class AiUsageRowOut(BaseModel):
+    key: str
+    interactions: int
+    prompt_tokens: int
+    completion_tokens: int
+    # float, no Decimal: Pydantic v2 serializa Decimal como string por
+    # defecto — se fija a float en la salida, Numeric se queda en la BD.
+    cost_usd: float
+    cache_hits: int
+    blocked: int
+
+
+class AiBudgetStatusOut(BaseModel):
+    month_to_date_usd: float
+    monthly_limit_usd: float
+    pct_used: float
+    level: Literal["ok", "warning", "critical"]
+
+
+class AiUsageOut(BaseModel):
+    items: list[AiUsageRowOut]
+    budget: AiBudgetStatusOut

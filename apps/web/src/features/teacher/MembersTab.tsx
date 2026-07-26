@@ -83,7 +83,7 @@ export function MembersTab({ groupId }: { groupId: string }) {
                   <span className="font-mono text-ink-secondary">{account.temporary_password}</span>
                   <button
                     onClick={() => copy(account.temporary_password)}
-                    className="text-xs text-primary hover:text-primary-hover"
+                    className="text-xs text-primary-ink hover:text-primary-hover"
                   >
                     copiar
                   </button>

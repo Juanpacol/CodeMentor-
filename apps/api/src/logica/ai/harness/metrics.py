@@ -29,3 +29,12 @@ ai_tokens_total = Counter(
     "Tokens consumidos por el harness de IA (prompt+completion), por tarea",
     ["task"],
 )
+
+# Ítem 14: costo ESTIMADO acumulado. Sin label de institución a propósito —
+# eso sería cardinalidad creciente con el número de tenants; el corte por
+# institución vive en Postgres (ai/repository.py::summarize_usage), no acá.
+ai_cost_usd_total = Counter(
+    "ai_harness_cost_usd_total",
+    "Costo estimado acumulado del harness de IA, por tarea y modelo",
+    ["task", "model"],
+)

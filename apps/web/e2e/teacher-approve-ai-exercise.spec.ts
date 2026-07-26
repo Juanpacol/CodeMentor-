@@ -1,3 +1,4 @@
+import { AxeBuilder } from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 
 import { createLanguage, insertAiDraftExercise, registerAndLogin } from './fixtures.js'
@@ -22,6 +23,10 @@ test('docente aprueba un ejercicio generado por IA desde la bandeja', async ({ p
 
   await page.goto('/app/docente/bandeja')
   await expect(page.getByText(title)).toBeVisible()
+
+  // Ítem 7: axe sobre la bandeja de aprobaciones.
+  const a11yResults = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+  expect(a11yResults.violations, JSON.stringify(a11yResults.violations, null, 2)).toEqual([])
 
   await page
     .locator('.rounded-card')

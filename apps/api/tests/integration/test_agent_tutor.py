@@ -2,6 +2,8 @@ import pytest
 from httpx import AsyncClient
 
 from logica.ai.harness.router import CompletionResult
+from logica.ai.rag.ingestion import ingest_document
+from logica.db import get_session_factory
 from logica.modules.users.models import Institution
 from tests.integration.conftest import (
     attach_exercise,
@@ -210,3 +212,78 @@ async def test_teacher_can_view_specific_students_history(
     )
     assert resp.status_code == 200
     assert len(resp.json()) == 2
+
+
+def _constant_vector(_texts_or_text: object) -> list[float]:
+    return [1.0] * 384
+
+
+async def test_hint_response_includes_sources_when_material_exists(
+    client: AsyncClient, institution: Institution, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "logica.ai.rag.ingestion.embed_texts", lambda texts: [_constant_vector(t) for t in texts]
+    )
+    monkeypatch.setattr("logica.ai.rag.retriever.embed_query", _constant_vector)
+
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
+
+    group, exercise_id = await _setup_group_with_exercise(client, teacher_access)
+    await join_group(client, student_access, group["invite_code"])
+
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        await ingest_document(
+            db,
+            institution_id=institution.id,
+            title="Referencia PSeInt",
+            text=(
+                "El ciclo Mientras se usa cuando no sabemos de antemano cuántas veces se repetirá."
+            ),
+        )
+        await db.commit()
+
+    fake = await _fake_router_complete("Piensa en qué se repite dentro del ciclo.")
+    monkeypatch.setattr("logica.ai.harness.harness.router_complete", fake)
+
+    resp = await client.post(
+        "/ai/tutor/hint",
+        json={
+            "group_id": group["id"],
+            "exercise_id": exercise_id,
+            "attempt_number": 1,
+            "student_answer": "no tengo idea",
+        },
+        headers=auth_headers(student_access),
+    )
+    assert resp.status_code == 201
+    assert resp.json()["sources"] == ["Referencia PSeInt"]
+
+
+async def test_hint_response_has_empty_sources_when_no_material(
+    client: AsyncClient, institution: Institution, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
+
+    group, exercise_id = await _setup_group_with_exercise(client, teacher_access)
+    await join_group(client, student_access, group["invite_code"])
+
+    fake = await _fake_router_complete("Piensa en qué se repite dentro del ciclo.")
+    monkeypatch.setattr("logica.ai.harness.harness.router_complete", fake)
+
+    resp = await client.post(
+        "/ai/tutor/hint",
+        json={
+            "group_id": group["id"],
+            "exercise_id": exercise_id,
+            "attempt_number": 1,
+            "student_answer": "no tengo idea",
+        },
+        headers=auth_headers(student_access),
+    )
+    assert resp.status_code == 201
+    assert resp.json()["sources"] == []

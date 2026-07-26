@@ -7,7 +7,13 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Import all module models here so Base.metadata is fully populated for autogenerate.
-from logica.ai.agents.models import AgentConfig, CodeIntegrityAlert, TutorMessage  # noqa: F401
+from logica.ai.agents.models import (  # noqa: F401
+    AgentConfig,
+    CodeIntegrityAlert,
+    CurriculumPlan,
+    CurriculumPlanItem,
+    TutorMessage,
+)
 from logica.ai.models import AiInteraction  # noqa: F401
 from logica.ai.rag.models import RagChunk, RagDocument  # noqa: F401
 from logica.config import get_settings
@@ -23,6 +29,11 @@ from logica.modules.evaluations.models import (  # noqa: F401
 )
 from logica.modules.exercises.models import Exercise, TopicExercise  # noqa: F401
 from logica.modules.groups.models import Group, GroupMembership  # noqa: F401
+from logica.modules.guides.models import (  # noqa: F401
+    Guide,
+    GuidesFolder,
+    GuideTemplate,
+)
 from logica.modules.observability.models import ErrorLog  # noqa: F401
 from logica.modules.progress.models import (  # noqa: F401
     AcademicPeriod,

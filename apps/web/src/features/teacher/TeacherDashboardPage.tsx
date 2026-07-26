@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'motion/react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
@@ -9,6 +9,7 @@ import { Dialog } from '../../components/ui/Dialog'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Input, Label } from '../../components/ui/Input'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { Stat } from '../../components/ui/Stat'
 import { pushToast } from '../../components/ui/toastStore'
 import { apiClient, ApiError, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
@@ -80,6 +81,16 @@ export function TeacherDashboardPage() {
         <h1 className="text-2xl font-semibold text-ink">Grupos</h1>
         <Button onClick={() => setCreateOpen(true)}>Crear grupo</Button>
       </div>
+
+      {/* Solo "activos": /groups/mine no expone los archivados (el
+          repositorio los filtra server-side por defecto y el endpoint no
+          tiene parámetro para pedirlos) — mostrar un conteo que no se puede
+          ver sería inventar un dato. */}
+      {!isLoading && groups && groups.length > 0 && (
+        <Card className="mb-6 inline-flex">
+          <Stat label="Grupos activos" value={groups.length} />
+        </Card>
+      )}
 
       {isLoading && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

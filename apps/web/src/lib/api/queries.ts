@@ -30,6 +30,13 @@ export const qk = {
     agentConfig: (groupId: string) => ['ai', 'agent-config', groupId] as const,
     pendingApprovals: ['ai', 'pending-approvals'] as const,
   },
+  guides: {
+    folders: (groupId: string) => ['guides', 'folders', groupId] as const,
+    templates: ['guides', 'templates'] as const,
+    inFolder: (folderId: string) => ['guides', 'in-folder', folderId] as const,
+    detail: (guideId: string) => ['guides', 'detail', guideId] as const,
+    published: (groupId: string) => ['guides', 'published', groupId] as const,
+  },
   reports: {
     job: (jobId: string) => ['reports', jobId] as const,
     gradebook: (groupId: string) => ['reports', 'gradebook', groupId] as const,
@@ -40,6 +47,7 @@ export const qk = {
       ['observability', 'errors', filters.statusCode ?? 'all', filters.path ?? '', filters.page] as const,
     audit: (filters: { action?: string; page: number }) =>
       ['observability', 'audit', filters.action ?? '', filters.page] as const,
+    aiUsage: (groupBy: string) => ['observability', 'ai-usage', groupBy] as const,
   },
   ragDocuments: (topicId?: string) => ['rag-documents', topicId ?? 'all'] as const,
 }

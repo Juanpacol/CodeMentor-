@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'motion/react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router'
 
 import { Badge } from '../../components/ui/Badge'
 import { Card } from '../../components/ui/Card'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { Markdown } from '../../components/ui/Markdown'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { apiClient, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
@@ -40,13 +41,24 @@ export function GroupDetailPage() {
     enabled: Boolean(groupId),
   })
 
+  // Solo devuelve guías `published`: el filtro vive en el backend, así que un
+  // borrador de IA no puede llegar hasta acá ni por error de render.
+  const { data: guides } = useQuery({
+    queryKey: qk.guides.published(groupId!),
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/groups/{group_id}/guides', { params: { path: { group_id: groupId! } } }),
+      ),
+    enabled: Boolean(groupId),
+  })
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-ink">Temario</h1>
         <Link
           to={`/app/grupos/${groupId}/practicar`}
-          className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+          className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
         >
           Ir a practicar
         </Link>
@@ -95,6 +107,25 @@ export function GroupDetailPage() {
             )
           })}
         </motion.ol>
+      )}
+
+      {guides && guides.length > 0 && (
+        <div className="mt-10">
+          <h2 className="mb-3 text-lg font-semibold text-ink">Guías</h2>
+          <div className="flex flex-col gap-2">
+            {guides.map((guide) => (
+              <details
+                key={guide.id}
+                className="rounded-card border border-hairline bg-raised px-4 py-3"
+              >
+                <summary className="cursor-pointer text-sm font-medium text-ink">
+                  {guide.title}
+                </summary>
+                <Markdown md={guide.content_md} className="mt-3" />
+              </details>
+            ))}
+          </div>
+        </div>
       )}
 
       {evaluations && evaluations.length > 0 && (

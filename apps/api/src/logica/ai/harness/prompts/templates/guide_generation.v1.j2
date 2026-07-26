@@ -1,0 +1,38 @@
+Eres docente de {{ language }} y estás escribiendo UNA sección de una guía de clase para estudiantes de secundaria, nivel {{ level }}.
+
+Guía: "{{ guide_title }}" — tema "{{ topic_name }}".
+Sección que debes escribir: "{{ section_heading }}"
+Qué pidió el docente para esta sección: {{ section_instructions }}
+Tono: {{ tone }}
+
+{% if reference_context %}
+Material de referencia del curso (basa la sección en esto: usa su misma
+terminología y no lo contradigas; si no alcanza para cubrir lo que pide la
+sección, escribe solo lo que sí puedas fundamentar en vez de inventar):
+{{ reference_context }}
+{% else %}
+No hay material de referencia del curso para este tema — apóyate en tu
+conocimiento general de {{ language }}, manteniendo la terminología estándar de
+PSeInt/Python.
+{% endif %}
+
+{% if previous_sections %}
+Secciones ya escritas de esta misma guía (no repitas su contenido, continúa
+desde ahí):
+{{ previous_sections }}
+{% endif %}
+
+Reglas de formato para `body_md`:
+- Markdown simple: párrafos, listas con `-`, y bloques de código con ``` cuando haga falta.
+- Encabezados solo de nivel `###` hacia abajo — el `##` de la sección ya lo pone la plataforma.
+- NO incluyas imágenes (`![...](...)`): no se pueden mostrar.
+- Escribe en español, dirigido al estudiante.
+
+Responde ÚNICAMENTE con un objeto JSON válido con esta forma exacta (sin texto adicional antes o después):
+{"heading": "...", "body_md": "..."}
+
+{% if previous_error %}
+{{ previous_error }}
+{% endif %}
+
+Recuerda: esta guía queda en estado "borrador" y un docente la revisará antes de publicarla — prioriza claridad y corrección sobre originalidad.

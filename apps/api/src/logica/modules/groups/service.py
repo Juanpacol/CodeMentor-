@@ -3,6 +3,7 @@ import string
 import uuid
 from datetime import UTC, datetime
 
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.core.audit import record_audit
@@ -20,6 +21,8 @@ from logica.modules.groups.repository import (
 from logica.modules.groups.schemas import CreatedAccount, CsvEnrollResult, CsvEnrollRowError
 from logica.modules.users.models import Role, User
 from logica.modules.users.repository import get_user_by_email
+
+logger = structlog.get_logger()
 
 _INVITE_ALPHABET = string.ascii_uppercase + string.digits
 
@@ -159,30 +162,48 @@ async def bulk_enroll_csv(
     already_enrolled = 0
 
     for row in parsed_rows:
-        user = await get_user_by_email(db, teacher.institution_id, row.email)
-        if user is None:
-            temp_password = secrets.token_urlsafe(9)
-            user = User(
-                institution_id=teacher.institution_id,
-                email=row.email,
-                student_code=row.student_code,
-                full_name=row.full_name,
-                hashed_password=hash_password(temp_password),
-                role=Role.student,
-            )
-            db.add(user)
-            await db.flush()
-            created_accounts.append(
-                CreatedAccount(email=row.email, temporary_password=temp_password)
-            )
+        # A row failing here (e.g. a unique-email race against a concurrent
+        # enrollment) must not abort every other row in the same file —
+        # isolated in its own SAVEPOINT, same idiom as
+        # content.service.enable_scheduled_topics.
+        try:
+            async with db.begin_nested():
+                user = await get_user_by_email(db, teacher.institution_id, row.email)
+                new_account: CreatedAccount | None = None
+                if user is None:
+                    temp_password = secrets.token_urlsafe(9)
+                    user = User(
+                        institution_id=teacher.institution_id,
+                        email=row.email,
+                        student_code=row.student_code,
+                        full_name=row.full_name,
+                        hashed_password=hash_password(temp_password),
+                        role=Role.student,
+                    )
+                    db.add(user)
+                    await db.flush()
+                    new_account = CreatedAccount(email=row.email, temporary_password=temp_password)
 
-        existing_membership = await get_membership(db, group.id, user.id)
-        if existing_membership is not None:
-            already_enrolled += 1
+                existing_membership = await get_membership(db, group.id, user.id)
+                row_already_enrolled = existing_membership is not None
+                if not row_already_enrolled:
+                    db.add(GroupMembership(group_id=group.id, student_id=user.id))
+                await db.flush()
+        except Exception:
+            logger.exception("bulk_enroll_row_failed", email=row.email, group_id=str(group.id))
+            errors.append(
+                CsvEnrollRowError(
+                    row_number=-1, raw_row=row.email, reason="error al matricular esta fila"
+                )
+            )
             continue
 
-        db.add(GroupMembership(group_id=group.id, student_id=user.id))
-        enrolled += 1
+        if new_account is not None:
+            created_accounts.append(new_account)
+        if row_already_enrolled:
+            already_enrolled += 1
+        else:
+            enrolled += 1
 
     await db.flush()
     await record_audit(

@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams } from 'react-router'
 
 import { exerciseRenderers, EXERCISE_TYPE_LABELS } from '../../components/exercises/registry'
 import { Button } from '../../components/ui/Button'

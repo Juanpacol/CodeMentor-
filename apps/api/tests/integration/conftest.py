@@ -21,6 +21,14 @@ _TABLES = (
     "evaluation_exercises",
     "evaluations",
     "practice_submissions",
+    # Fase 16 — hijo primero: `guides` referencia `guides_folders` y
+    # `guide_templates`. Listadas explícitamente aunque el CASCADE de más abajo
+    # (vía `groups`/`users`) también las alcanzaría: un TRUNCATE implícito deja
+    # de limpiar en el momento en que alguien cambia una FK, y el síntoma es un
+    # test que falla por datos de otro.
+    "guides",
+    "guides_folders",
+    "guide_templates",
     "topic_group_states",
     "topic_exercises",
     "exercises",

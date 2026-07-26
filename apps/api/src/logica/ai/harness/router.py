@@ -7,6 +7,7 @@ can monkeypatch a single call site and simulate provider failures/successes
 deterministically, without hitting real APIs or spending tokens."""
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any, Literal
 
 import litellm
@@ -36,15 +37,42 @@ _MODEL_CHAINS: dict[TaskTier, list[str]] = {
 }
 
 # Which tier each harness task uses. Fase 6 agents map onto these tasks.
+# Nota: el agente de analítica de aprendizaje llama al harness con
+# task="summarize_group" (ver ai/skills/summarize_group.py), no
+# "learning_analytics" — esa clave nunca se usó como tarea real.
 TASK_TIERS: dict[str, TaskTier] = {
     "progressive_hint": "cheap",
     "pedagogical_feedback": "cheap",
     "summarize_group": "cheap",
     "exercise_generation": "capable",
     "grading_suggestion": "capable",
-    "learning_analytics": "capable",
     "code_integrity": "capable",
+    # Fase 16: una guía es material de referencia que el estudiante lee tal cual
+    # (a diferencia de una pista, que es desechable), así que va al tier capaz
+    # aunque cueste más — el docente igual la revisa, pero corregir prosa mala
+    # cuesta más tiempo suyo que la diferencia de tokens.
+    "guide_generation": "capable",
 }
+
+# Ítem 14: USD por 1M de tokens, (prompt, completion). Precios de lista
+# públicos a la fecha del commit. Viven junto a _MODEL_CHAINS y no en una
+# tabla de BD porque son metadatos del *código* — cambian cuando cambia
+# _MODEL_CHAINS, no datos de una institución. Un modelo ausente cuesta 0.0:
+# Ollama es autoalojado, y un id nuevo sin precio debe leerse como "sin costo
+# conocido", nunca reventar la respuesta al estudiante.
+_MODEL_PRICES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
+    "groq/llama-3.1-8b-instant": (0.05, 0.08),
+    "groq/llama-3.3-70b-versatile": (0.59, 0.79),
+    "gemini/gemini-1.5-flash": (0.075, 0.30),
+    "gemini/gemini-1.5-pro": (1.25, 5.00),
+    "ollama/llama3.1": (0.0, 0.0),
+}
+
+
+def estimate_cost_usd(model: str, prompt_tokens: int, completion_tokens: int) -> Decimal:
+    price_in, price_out = _MODEL_PRICES_USD_PER_MTOK.get(model, (0.0, 0.0))
+    cost = (prompt_tokens * price_in + completion_tokens * price_out) / 1_000_000
+    return Decimal(str(cost))
 
 
 class AllProvidersFailedError(ServiceUnavailableError):
@@ -68,6 +96,9 @@ class CompletionResult:
     model: str
     prompt_tokens: int
     completion_tokens: int
+    # Default 0 (no las ~24 llamadas existentes en tests que ya construyen
+    # CompletionResult a mano no necesitan actualizarse por este campo).
+    cost_usd: Decimal = Decimal("0")
 
 
 async def _completion_fn(model: str, messages: list[dict[str, str]]) -> Any:
@@ -100,11 +131,14 @@ async def complete(task: str, messages: list[dict[str, str]]) -> CompletionResul
 
         choice = response.choices[0]
         usage = getattr(response, "usage", None)
+        prompt_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
+        completion_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
         return CompletionResult(
             text=choice.message.content or "",
             model=model,
-            prompt_tokens=getattr(usage, "prompt_tokens", 0) if usage else 0,
-            completion_tokens=getattr(usage, "completion_tokens", 0) if usage else 0,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost_usd=estimate_cost_usd(model, prompt_tokens, completion_tokens),
         )
 
     logger.error("ai_all_providers_failed", task=task, errors=errors)

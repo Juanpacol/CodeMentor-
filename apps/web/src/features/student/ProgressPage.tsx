@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'motion/react'
 
+import { BarList, type BarListItem } from '../../components/ui/BarList'
 import { Card } from '../../components/ui/Card'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { Stat } from '../../components/ui/Stat'
 import { useTilt } from '../../hooks/useTilt'
 import { apiClient, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
@@ -11,6 +13,35 @@ import { staggerContainer, staggerItem } from '../../lib/motion'
 import type { components } from '../../lib/api/schema'
 
 type BadgeOut = components['schemas']['BadgeOut']
+type MasteryOut = { accuracy: number | null; submissions: number }
+
+/** Suma de envíos y precisión ponderada por envíos, calculadas en el
+ * cliente a partir del mismo payload que ya trae `mastery_by_topic` — cero
+ * endpoints nuevos. `accuracy: null` significa "sin envíos todavía" y no
+ * aporta al ponderado. */
+function deriveStats(masteries: MasteryOut[]): { totalSubmissions: number; weightedAccuracy: number | null } {
+  const totalSubmissions = masteries.reduce((sum, m) => sum + m.submissions, 0)
+  const withAccuracy = masteries.filter((m) => m.accuracy !== null)
+  const weightedSubmissions = withAccuracy.reduce((sum, m) => sum + m.submissions, 0)
+  const weightedAccuracy =
+    weightedSubmissions === 0
+      ? null
+      : withAccuracy.reduce((sum, m) => sum + m.accuracy! * m.submissions, 0) / weightedSubmissions
+  return { totalSubmissions, weightedAccuracy }
+}
+
+function toBarListItems(
+  masteries: { accuracy: number | null; submissions: number; name: string; id: string }[],
+): BarListItem[] {
+  return [...masteries]
+    .sort((a, b) => (b.accuracy ?? -1) - (a.accuracy ?? -1))
+    .map((m) => ({
+      key: m.id,
+      label: m.name,
+      value: m.accuracy,
+      hint: <span>({m.submissions})</span>,
+    }))
+}
 
 const BADGE_ICON: Record<string, string> = {
   topic_mastery: '🎯',
@@ -40,27 +71,6 @@ function BadgeCard({ badge }: { badge: BadgeOut }) {
   )
 }
 
-function MasteryBar({ label, accuracy, submissions }: { label: string; accuracy: number | null; submissions: number }) {
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="text-ink">{label}</span>
-        <span className="text-ink-secondary">
-          {accuracy !== null ? `${Math.round(accuracy * 100)}%` : '—'} ({submissions})
-        </span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-overlay">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${(accuracy ?? 0) * 100}%` }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="h-full rounded-full bg-primary"
-        />
-      </div>
-    </div>
-  )
-}
-
 export function ProgressPage() {
   const { data: progress, isLoading } = useQuery({
     queryKey: qk.progress.me,
@@ -76,21 +86,38 @@ export function ProgressPage() {
     )
   }
 
+  const { totalSubmissions, weightedAccuracy } = deriveStats(progress.mastery_by_topic)
+
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold text-ink">Mi progreso</h1>
 
-      <Card className="mb-8 flex items-center gap-4">
-        <motion.span
-          initial={{ scale: 0.7, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-          className="text-4xl font-bold text-primary"
-        >
-          {progress.points}
-        </motion.span>
-        <span className="text-sm text-ink-secondary">puntos acumulados</span>
-      </Card>
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card>
+          <Stat
+            label="Puntos acumulados"
+            value={
+              <motion.span
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                className="inline-block"
+              >
+                {progress.points}
+              </motion.span>
+            }
+          />
+        </Card>
+        <Card>
+          <Stat label="Ejercicios resueltos" value={totalSubmissions} />
+        </Card>
+        <Card>
+          <Stat
+            label="Precisión global"
+            value={weightedAccuracy !== null ? `${Math.round(weightedAccuracy * 100)}%` : '—'}
+          />
+        </Card>
+      </div>
 
       <h2 className="mb-3 text-lg font-semibold text-ink">Insignias</h2>
       {progress.badges.length === 0 ? (
@@ -111,29 +138,29 @@ export function ProgressPage() {
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
         <div>
           <h2 className="mb-3 text-lg font-semibold text-ink">Dominio por tema</h2>
-          <div className="flex flex-col gap-3">
-            {progress.mastery_by_topic.map((m) => (
-              <MasteryBar
-                key={m.topic_id}
-                label={m.topic_name}
-                accuracy={m.accuracy}
-                submissions={m.submissions}
-              />
-            ))}
-          </div>
+          <BarList
+            items={toBarListItems(
+              progress.mastery_by_topic.map((m) => ({
+                id: m.topic_id,
+                name: m.topic_name,
+                accuracy: m.accuracy,
+                submissions: m.submissions,
+              })),
+            )}
+          />
         </div>
         <div>
           <h2 className="mb-3 text-lg font-semibold text-ink">Dominio por lenguaje</h2>
-          <div className="flex flex-col gap-3">
-            {progress.mastery_by_language.map((m) => (
-              <MasteryBar
-                key={m.language_id}
-                label={m.language_name}
-                accuracy={m.accuracy}
-                submissions={m.submissions}
-              />
-            ))}
-          </div>
+          <BarList
+            items={toBarListItems(
+              progress.mastery_by_language.map((m) => ({
+                id: m.language_id,
+                name: m.language_name,
+                accuracy: m.accuracy,
+                submissions: m.submissions,
+              })),
+            )}
+          />
         </div>
       </div>
     </div>

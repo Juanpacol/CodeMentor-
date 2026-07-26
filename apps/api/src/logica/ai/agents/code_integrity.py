@@ -6,6 +6,7 @@ opinion, both surfaced together so the teacher can judge for themselves."""
 import uuid
 from datetime import UTC, datetime
 
+import structlog
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +26,8 @@ from logica.modules.exercises.models import ExerciseType
 from logica.modules.exercises.repository import get_exercise
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.users.models import Role, User
+
+logger = structlog.get_logger()
 
 # Below this, a submission is flagged as suspiciously fast for a live-code
 # exercise — a heuristic signal fed to the model, never a verdict on its own.
@@ -94,7 +97,7 @@ async def check_integrity(
         output_model=IntegrityCheckOutput,
     )
 
-    return await create_code_integrity_alert(
+    alert = await create_code_integrity_alert(
         db,
         CodeIntegrityAlert(
             evaluation_answer_id=answer.id,
@@ -102,3 +105,10 @@ async def check_integrity(
             reasoning=output.reasoning,
         ),
     )
+    logger.info(
+        "code_integrity_alert_persisted",
+        alert_id=str(alert.id),
+        answer_id=str(answer.id),
+        suspicious=alert.suspicious,
+    )
+    return alert

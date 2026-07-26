@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useCallback, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router'
 
 import { exerciseRenderers, EXERCISE_TYPE_LABELS } from '../../components/exercises/registry'
 import { Button } from '../../components/ui/Button'

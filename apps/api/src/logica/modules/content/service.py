@@ -2,6 +2,7 @@ import json
 import uuid
 from datetime import UTC, datetime
 
+import structlog
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +25,8 @@ from logica.modules.content.repository import (
 from logica.modules.content.schemas import CurriculumTopicOut, TopicOut
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.users.models import Role, User
+
+logger = structlog.get_logger()
 
 # RE-02: el temario de una institución cambia poco (un docente lo edita
 # ocasionalmente) pero se lee en cada carga de la página de práctica de cada
@@ -238,11 +241,31 @@ async def get_curriculum_for_group(
 
 async def enable_scheduled_topics(db: AsyncSession) -> int:
     """Flips due `scheduled_enable_at` topics to enabled (RF-24). Runs as a
-    periodic worker job (see logica.workers.settings), never on a request path."""
+    periodic worker job (see logica.workers.settings), never on a request path.
+
+    Each row gets its own SAVEPOINT: a single failing row would otherwise abort
+    the whole Postgres transaction (and with it every other due row in this
+    tick), not just itself. A failed row stays `locked` and is retried on the
+    next tick with no extra state to track."""
     due = await list_due_scheduled_states(db, datetime.now(UTC))
+    enabled_count = 0
     for state in due:
-        state.state = TopicGroupStateValue.enabled
-        state.enabled_at = datetime.now(UTC)
-        state.scheduled_enable_at = None
-    await db.flush()
-    return len(due)
+        # Captured before the savepoint: a rollback expires `state`'s
+        # attributes, and refreshing them from the DB afterwards needs a
+        # sync-style ORM call that isn't safe to make from inside `except`.
+        state_id, topic_id, group_id = state.id, state.topic_id, state.group_id
+        try:
+            async with db.begin_nested():
+                state.state = TopicGroupStateValue.enabled
+                state.enabled_at = datetime.now(UTC)
+                state.scheduled_enable_at = None
+                await db.flush()
+            enabled_count += 1
+        except Exception:
+            logger.exception(
+                "scheduled_topic_enable_failed",
+                topic_group_state_id=str(state_id),
+                topic_id=str(topic_id),
+                group_id=str(group_id),
+            )
+    return enabled_count

@@ -63,6 +63,13 @@ services:
       - ./apps/api:/app
       - worker_venv:/app/.venv
       - reports_data:/app/reports
+    # arq no trae recarga en caliente (el servicio `api` la tiene vía uvicorn
+    # --reload), así que sin esto el worker seguía corriendo el código con el que
+    # arrancó: tocar workers/settings.py exigía `docker restart logica-worker-1`,
+    # y el síntoma de olvidarlo es un job encolado que nunca se ejecuta porque el
+    # worker no conoce su nombre. `watchfiles` ya viene con uvicorn[standard].
+    # Solo desarrollo: Dockerfile.worker (producción) conserva su CMD sin envolver.
+    command: watchfiles --filter python "arq logica.workers.settings.WorkerSettings" src
     depends_on:
       postgres:
         condition: service_healthy

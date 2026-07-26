@@ -36,7 +36,7 @@ export function FillCodeRenderer({
                 disabled={disabled}
                 value={values[i] ?? ''}
                 onChange={(e) => setBlank(i, e.target.value)}
-                className="mx-1 inline-block w-24 rounded border border-hairline-strong bg-raised px-1.5 py-0.5 font-mono text-sm text-primary focus:border-primary focus:outline-none disabled:opacity-60"
+                className="mx-1 inline-block w-24 rounded border border-hairline-strong bg-raised px-1.5 py-0.5 font-mono text-sm text-primary-ink focus:border-primary focus:outline-none disabled:opacity-60"
               />
             )}
           </span>
