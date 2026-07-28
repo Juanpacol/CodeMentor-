@@ -5,25 +5,46 @@ similar exercises so it doesn't duplicate the bank. Every output lands as
 and publishes it (via the existing PATCH /exercises/{id})."""
 
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 import structlog
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.ai.agents.config_service import ensure_agent_enabled
 from logica.ai.agents.models import AgentName
 from logica.ai.harness.structured import complete_structured
 from logica.ai.skills.retrieve_context import retrieve_context
-from logica.core.errors import NotFoundError, PermissionDeniedError
+from logica.core.errors import (
+    ConflictError,
+    LogicaError,
+    NotFoundError,
+    PermissionDeniedError,
+    ServiceUnavailableError,
+)
+from logica.modules.content.models import Topic
 from logica.modules.content.repository import get_language, get_topic
-from logica.modules.exercises.models import Exercise, ExerciseOrigin, ExerciseStatus, ExerciseType
-from logica.modules.exercises.repository import list_exercises
+from logica.modules.exercises.models import (
+    Exercise,
+    ExerciseOrigin,
+    ExerciseStatus,
+    ExerciseType,
+    TopicExercise,
+)
+from logica.modules.exercises.repository import get_topic_exercise_link, list_exercises
 from logica.modules.groups.service import get_group_with_access
+from logica.modules.guides.models import Guide, GuidesFolder
 from logica.modules.users.models import Role, User
 
 logger = structlog.get_logger()
+
+# Cuánto de la guía se le muestra al modelo. La guía completa son varias
+# secciones y haría crecer el prompt de cada ejercicio del lote sin aportar:
+# lo que importa es la notación y el alcance, que están al principio.
+_GUIDE_EXCERPT_CHARS = 1500
 
 _SCHEMA_HINTS: dict[ExerciseType, str] = {
     ExerciseType.true_false: '{"title": "...", "content": {"statement": "...", "answer": true}}',
@@ -60,6 +81,87 @@ class ExerciseGenerationOutput(BaseModel):
     content: dict[str, Any]
 
 
+async def _complete_exercise(
+    db: AsyncSession,
+    redis: Redis,
+    teacher: User,
+    *,
+    topic: Topic,
+    language_name: str,
+    exercise_type: ExerciseType,
+    guide_excerpt: str = "",
+) -> ExerciseGenerationOutput:
+    """Solo la llamada al modelo. Está separada de la persistencia a propósito:
+    el lote de la Fase 17 necesita envolver los INSERTs en un SAVEPOINT, y meter
+    también esta parte adentro revertiría la fila de `ai_interactions` que
+    `complete_structured` ya escribió antes de fallar — justo el registro que
+    explica por qué falló."""
+    reference_context = await retrieve_context(
+        db, teacher.institution_id, f"{topic.name} {exercise_type.value}", topic_id=topic.id
+    )
+    existing = await list_exercises(db, teacher.institution_id, topic_id=topic.id)
+    similar_exercises = "\n".join(f"- {e.title}" for e in existing[:5])
+
+    return await complete_structured(
+        db,
+        redis,
+        task="exercise_generation",
+        user=teacher,
+        template_vars={
+            "exercise_type": exercise_type.value,
+            "topic_name": topic.name,
+            "language": language_name,
+            "level": topic.level.value,
+            "reference_context": reference_context,
+            "similar_exercises": similar_exercises,
+            "guide_excerpt": guide_excerpt,
+            "schema_hint": _SCHEMA_HINTS[exercise_type],
+        },
+        output_model=ExerciseGenerationOutput,
+    )
+
+
+async def _persist_exercise(
+    db: AsyncSession,
+    teacher: User,
+    output: ExerciseGenerationOutput,
+    *,
+    topic: Topic,
+    exercise_type: ExerciseType,
+    guide_id: uuid.UUID | None = None,
+) -> Exercise:
+    exercise = Exercise(
+        institution_id=teacher.institution_id,
+        language_id=topic.language_id,
+        created_by_id=teacher.id,
+        title=output.title,
+        type=exercise_type,
+        content=output.content,
+        origin=ExerciseOrigin.ai,
+        status=ExerciseStatus.draft,
+        guide_id=guide_id,
+    )
+    db.add(exercise)
+    await db.flush()
+    await db.refresh(exercise)
+
+    # El eje de organización por tema sigue siendo `topic_exercises`, también
+    # para los ejercicios que nacen de una guía: sin este enlace no aparecerían
+    # al filtrar el banco por tema, que es como el docente los busca.
+    if await get_topic_exercise_link(db, topic.id, exercise.id) is None:
+        db.add(TopicExercise(topic_id=topic.id, exercise_id=exercise.id))
+        await db.flush()
+
+    logger.info(
+        "exercise_draft_persisted",
+        exercise_id=str(exercise.id),
+        topic_id=str(topic.id),
+        guide_id=str(guide_id) if guide_id else None,
+        exercise_type=exercise_type.value,
+    )
+    return exercise
+
+
 async def generate_exercise_draft(
     db: AsyncSession,
     redis: Redis,
@@ -82,47 +184,107 @@ async def generate_exercise_draft(
     if language is None:
         raise NotFoundError("Lenguaje no encontrado")
 
-    reference_context = await retrieve_context(
-        db, teacher.institution_id, f"{topic.name} {exercise_type.value}", topic_id=topic_id
-    )
-    existing = await list_exercises(db, teacher.institution_id, topic_id=topic_id)
-    similar_exercises = "\n".join(f"- {e.title}" for e in existing[:5])
-
-    output = await complete_structured(
+    output = await _complete_exercise(
         db,
         redis,
-        task="exercise_generation",
-        user=teacher,
-        template_vars={
-            "exercise_type": exercise_type.value,
-            "topic_name": topic.name,
-            "language": language.name,
-            "level": topic.level.value,
-            "reference_context": reference_context,
-            "similar_exercises": similar_exercises,
-            "schema_hint": _SCHEMA_HINTS[exercise_type],
-        },
-        output_model=ExerciseGenerationOutput,
+        teacher,
+        topic=topic,
+        language_name=language.name,
+        exercise_type=exercise_type,
     )
+    return await _persist_exercise(db, teacher, output, topic=topic, exercise_type=exercise_type)
 
-    exercise = Exercise(
-        institution_id=teacher.institution_id,
-        language_id=topic.language_id,
-        created_by_id=teacher.id,
-        title=output.title,
-        type=exercise_type,
-        content=output.content,
-        origin=ExerciseOrigin.ai,
-        status=ExerciseStatus.draft,
-    )
-    db.add(exercise)
-    await db.flush()
-    await db.refresh(exercise)
+
+async def generate_exercises_for_guide(
+    db: AsyncSession,
+    redis: Redis,
+    teacher: User,
+    *,
+    guide_id: uuid.UUID,
+    exercise_types: Sequence[ExerciseType],
+) -> list[Exercise]:
+    """Fase 17: un ejercicio por tipo pedido, fundamentado en el texto de la guía.
+
+    Pasar el `content_md` de la guía al prompt (v2, variable `guide_excerpt`) es
+    lo que hace que estos sean ejercicios *de esa guía* y no del tema en general:
+    evalúan lo que la guía alcanzó a explicar, con su misma notación.
+
+    Misma taxonomía de error que `guide_writer._write_all_sections`: un tipo que
+    falla se salta (tres de cuatro ejercicios sirven y cero no), pero presupuesto
+    agotado o proveedores caídos se propagan — son condiciones globales, y seguir
+    con el siguiente tipo solo repite el mismo fallo más lento."""
+    if teacher.role not in (Role.teacher, Role.admin):
+        raise PermissionDeniedError("Solo un docente o administrador puede generar ejercicios")
+
+    guide = await db.get(Guide, guide_id)
+    if guide is None or guide.institution_id != teacher.institution_id:
+        raise NotFoundError("Guía no encontrada")
+    folder = await db.get(GuidesFolder, guide.folder_id)
+    if folder is None:
+        raise NotFoundError("Carpeta de guías no encontrada")
+    await ensure_agent_enabled(db, folder.group_id, AgentName.exercise_generator)
+
+    topic = await get_topic(db, guide.topic_id)
+    if topic is None or topic.institution_id != teacher.institution_id:
+        raise NotFoundError("Tema no encontrado")
+    language = await get_language(db, topic.language_id)
+    if language is None:
+        raise NotFoundError("Lenguaje no encontrado")
+
+    excerpt = guide.content_md[:_GUIDE_EXCERPT_CHARS]
+    created: list[Exercise] = []
+
+    for exercise_type in exercise_types:
+        try:
+            output = await _complete_exercise(
+                db,
+                redis,
+                teacher,
+                topic=topic,
+                language_name=language.name,
+                exercise_type=exercise_type,
+                guide_excerpt=excerpt,
+            )
+        except (ConflictError, ServiceUnavailableError):
+            logger.warning("exercise_batch_aborted", guide_id=str(guide_id), created=len(created))
+            raise
+        except LogicaError as exc:
+            # Fallo aislado de un tipo, casi siempre StructuredOutputError: el
+            # modelo no produjo el JSON que ese tipo de ejercicio exige.
+            logger.warning(
+                "exercise_batch_item_failed",
+                guide_id=str(guide_id),
+                exercise_type=exercise_type.value,
+                error=str(exc),
+            )
+            continue
+
+        try:
+            # SAVEPOINT solo alrededor de los INSERTs (regla de CLAUDE.md): en
+            # Postgres una sentencia fallida aborta toda la transacción abierta,
+            # así que sin esto un choque contra la restricción única de
+            # `topic_exercises` se llevaría los ejercicios ya creados en el lote.
+            async with db.begin_nested():
+                exercise = await _persist_exercise(
+                    db,
+                    teacher,
+                    output,
+                    topic=topic,
+                    exercise_type=exercise_type,
+                    guide_id=guide.id,
+                )
+            created.append(exercise)
+        except SQLAlchemyError:
+            logger.exception(
+                "exercise_batch_item_row_failed",
+                guide_id=str(guide_id),
+                exercise_type=exercise_type.value,
+            )
+
     logger.info(
-        "exercise_draft_persisted",
-        exercise_id=str(exercise.id),
-        group_id=str(group_id),
-        topic_id=str(topic_id),
-        exercise_type=exercise_type.value,
+        "exercises_for_guide_generated",
+        guide_id=str(guide_id),
+        requested=len(exercise_types),
+        created=len(created),
     )
-    return exercise
+    return created

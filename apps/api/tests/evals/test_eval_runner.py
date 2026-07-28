@@ -118,9 +118,14 @@ async def test_progressive_hint_eval(
     _check_text(result.text, case["checks"])
 
 
+# Parametrizado por versión desde la Fase 17, cuando `exercise_generation`
+# estrenó su v2: sin esto `make evals-compare TASK=exercise_generation V=1,2`
+# corría dos veces la versión activa y reportaba una comparación que no existía.
+@pytest.mark.parametrize("prompt_version", _versions_under_test("exercise_generation"))
 @pytest.mark.parametrize("case", EXERCISE_GENERATION_CASES, ids=lambda c: c["id"])
 async def test_exercise_generation_eval(
     case: dict[str, Any],
+    prompt_version: int | None,
     client: AsyncClient,
     institution: Institution,
     redis_client: Redis,
@@ -149,6 +154,7 @@ async def test_exercise_generation_eval(
             user=user,
             template_vars=case["template_vars"],
             output_model=ExerciseGenerationOutput,
+            prompt_version=prompt_version,
         )
         await db.commit()
 

@@ -918,6 +918,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/guides/{guide_id}/exercises": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Exercises For Guide
+         * @description 202: un ejercicio por tipo pedido son N llamadas al modelo, igual que la
+         *     guía. No hay fila de job — los borradores aparecen en el banco a medida que
+         *     el worker los crea, y el cliente los descubre listando por `guide_id`.
+         *
+         *     Se valida el acceso acá y no solo en el worker para que un docente que no
+         *     administra el grupo reciba un 403 inmediato en vez de un job silencioso.
+         */
+        post: operations["generate_exercises_for_guide_ai_guides__guide_id__exercises_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/grading/suggest": {
         parameters: {
             query?: never;
@@ -1152,6 +1177,66 @@ export interface paths {
         get: operations["get_gradebook_groups__group_id__gradebook_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/groups/{group_id}/rubric-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Rubric Runs */
+        get: operations["list_rubric_runs_groups__group_id__rubric_runs_get"];
+        put?: never;
+        /**
+         * Create Rubric Run
+         * @description 202: la corrida son minutos de trabajo del worker. Devuelve la fila en
+         *     `pending` y el cliente hace polling sobre `GET /rubric-runs/{id}`.
+         */
+        post: operations["create_rubric_run_groups__group_id__rubric_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rubric-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Rubric Run
+         * @description El poll target. Devuelve run + ítems juntos para que la pantalla de
+         *     progreso no encadene dos peticiones cada 3 segundos.
+         */
+        get: operations["get_rubric_run_rubric_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rubric-runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Rubric Run */
+        post: operations["cancel_rubric_run_rubric_runs__run_id__cancel_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1643,6 +1728,8 @@ export interface components {
             status: components["schemas"]["ExerciseStatus"];
             /** Version */
             version: number;
+            /** Guide Id */
+            guide_id?: string | null;
         };
         /**
          * ExerciseStatus
@@ -1784,6 +1871,11 @@ export interface components {
             name?: string | null;
             /** Grade Or Shift */
             grade_or_shift?: string | null;
+        };
+        /** GuideExercisesRequest */
+        GuideExercisesRequest: {
+            /** Exercise Types */
+            exercise_types: components["schemas"]["ExerciseType"][];
         };
         /** GuideGenerateRequest */
         GuideGenerateRequest: {
@@ -2270,6 +2362,8 @@ export interface components {
             source_type: string;
             /** Topic Id */
             topic_id: string | null;
+            /** Source Url */
+            source_url?: string | null;
             /** Chunk Count */
             chunk_count: number;
             /**
@@ -2349,6 +2443,135 @@ export interface components {
          * @enum {string}
          */
         Role: "student" | "teacher" | "admin";
+        /** RubricItemOut */
+        RubricItemOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Topic Name */
+            topic_name: string;
+            level: components["schemas"]["TopicLevel"];
+            /** Order Index */
+            order_index: number;
+            /** Topic Id */
+            topic_id: string | null;
+            /** Guide Id */
+            guide_id: string | null;
+            /** Sources Ingested */
+            sources_ingested: number;
+            /** Exercises Created */
+            exercises_created: number;
+            status: components["schemas"]["RubricItemStatus"];
+            /** Error Message */
+            error_message: string | null;
+        };
+        /** RubricItemSpec */
+        RubricItemSpec: {
+            /** Topic Name */
+            topic_name: string;
+            /** @default basico */
+            level: components["schemas"]["TopicLevel"];
+            /** Extra Urls */
+            extra_urls?: string[];
+        };
+        /**
+         * RubricItemStatus
+         * @description Un estado por etapa de la máquina, para que el docente vea en qué va cada
+         *     tema y no solo una barra global.
+         * @enum {string}
+         */
+        RubricItemStatus: "pending" | "acquiring" | "writing_guide" | "writing_exercises" | "done" | "failed";
+        /** RubricRunCreateRequest */
+        RubricRunCreateRequest: {
+            /** Name */
+            name: string;
+            /**
+             * Language Id
+             * Format: uuid
+             */
+            language_id: string;
+            /**
+             * Template Id
+             * Format: uuid
+             */
+            template_id: string;
+            /** Folder Name */
+            folder_name: string;
+            /** Items */
+            items: components["schemas"]["RubricItemSpec"][];
+            /** Exercise Types */
+            exercise_types: components["schemas"]["ExerciseType"][];
+            /**
+             * Acquire Content
+             * @default true
+             */
+            acquire_content: boolean;
+        };
+        /**
+         * RubricRunDetailOut
+         * @description El poll target: run + ítems en una sola respuesta, para que la pantalla de
+         *     progreso no tenga que encadenar dos peticiones cada 3 segundos.
+         */
+        RubricRunDetailOut: {
+            run: components["schemas"]["RubricRunOut"];
+            /** Items */
+            items: components["schemas"]["RubricItemOut"][];
+        };
+        /** RubricRunOut */
+        RubricRunOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Group Id
+             * Format: uuid
+             */
+            group_id: string;
+            /**
+             * Folder Id
+             * Format: uuid
+             */
+            folder_id: string;
+            /**
+             * Template Id
+             * Format: uuid
+             */
+            template_id: string;
+            /**
+             * Language Id
+             * Format: uuid
+             */
+            language_id: string;
+            /** Name */
+            name: string;
+            /** Exercise Types */
+            exercise_types: string[];
+            /** Acquire Content */
+            acquire_content: boolean;
+            status: components["schemas"]["RubricRunStatus"];
+            /** Error Message */
+            error_message: string | null;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * RubricRunStatus
+         * @description `partial` no es un adorno: con los límites del tier gratuito de Groq, que
+         *     8 de 10 temas salgan es el resultado **común**, no la excepción. Colapsarlo a
+         *     `done` le diría al docente que su temario está listo cuando le faltan dos
+         *     guías; colapsarlo a `failed` le diría que no tiene nada cuando tiene ocho.
+         * @enum {string}
+         */
+        RubricRunStatus: "pending" | "running" | "done" | "partial" | "failed";
         /** ScheduleEnableRequest */
         ScheduleEnableRequest: {
             /**
@@ -4492,6 +4715,43 @@ export interface operations {
             };
         };
     };
+    generate_exercises_for_guide_ai_guides__guide_id__exercises_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                guide_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuideExercisesRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     suggest_grading_ai_grading_suggest_post: {
         parameters: {
             query?: never;
@@ -4952,6 +5212,134 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GradebookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rubric_runs_groups__group_id__rubric_runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_rubric_run_groups__group_id__rubric_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RubricRunCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_rubric_run_rubric_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricRunDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_rubric_run_rubric_runs__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricRunOut"];
                 };
             };
             /** @description Validation Error */

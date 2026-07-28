@@ -189,3 +189,54 @@ cases:
     checks:
       title_min_length: 5
       content_has_keys: ["statement", "options", "answer_index"]
+
+  # Fase 17 (prompt v2): ejercicios generados a partir de una guía. Lo que estos
+  # casos protegen es que `guide_excerpt` se renderice y que el ejercicio evalúe
+  # lo que la guía explicó, no el tema en general.
+  - id: find_error_desde_guia_condicionales
+    template_vars:
+      exercise_type: "find_error"
+      topic_name: "Estructuras condicionales"
+      language: "PSeInt"
+      level: "basico"
+      reference_context: "En PSeInt un condicional se escribe Si-Entonces-SiNo-FinSi."
+      similar_exercises: ""
+      guide_excerpt: >-
+        ## Objetivos
+
+        Al terminar reconocerás un Si-Entonces y sabrás cerrarlo con FinSi.
+        Toda condición debe evaluar a Verdadero o Falso.
+      schema_hint: >-
+        {"title": "...", "content": {"statement": "...", "code": "...", "error_line": 1,
+        "error_kind": "sintaxis"}}
+    fake_model_output: >-
+      {"title": "Condicional sin FinSi",
+      "content": {"statement": "Encuentra el error en este pseudocódigo.",
+      "code": "Si edad >= 18 Entonces\n  Escribir 'mayor'\n",
+      "error_line": 3, "error_kind": "sintaxis"}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["statement", "code", "error_line", "error_kind"]
+
+  - id: true_false_desde_guia_ciclos
+    template_vars:
+      exercise_type: "true_false"
+      topic_name: "Ciclos mientras"
+      language: "PSeInt"
+      level: "intermedio"
+      reference_context: ""
+      similar_exercises: "- Verdadero o falso sobre el contador"
+      guide_excerpt: >-
+        ## Cuándo usar Mientras
+
+        Se usa cuando no se sabe de antemano cuántas repeticiones hacen falta.
+        La condición se evalúa ANTES de cada vuelta, así que el cuerpo puede no
+        ejecutarse ni una sola vez.
+      schema_hint: '{"title": "...", "content": {"statement": "...", "answer": true}}'
+    fake_model_output: >-
+      {"title": "Ejecución del cuerpo de un Mientras",
+      "content": {"statement": "Un ciclo Mientras siempre ejecuta su cuerpo al menos una vez.",
+      "answer": false}}
+    checks:
+      title_min_length: 5
+      content_has_keys: ["statement", "answer"]

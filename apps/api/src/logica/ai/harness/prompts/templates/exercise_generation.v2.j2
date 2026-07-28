@@ -1,0 +1,31 @@
+Genera un ejercicio nuevo de tipo "{{ exercise_type }}" para el tema "{{ topic_name }}" ({{ language }}), nivel {{ level }}.
+
+{% if guide_excerpt %}
+Este ejercicio acompaña a una guía de clase que el estudiante acaba de leer. Debe
+evaluar exactamente lo que la guía explica — su misma notación, sus mismos nombres
+de variables cuando aplique, y nada que la guía no haya cubierto todavía:
+{{ guide_excerpt }}
+{% endif %}
+
+{% if reference_context %}
+Usa como referencia el siguiente material del curso (no lo copies literalmente,
+pero no lo contradigas — usa su misma terminología y estilo):
+{{ reference_context }}
+{% else %}
+No hay material de referencia del curso para este tema — usa tu conocimiento
+general de {{ language }}, manteniendo la terminología estándar de PSeInt/Python.
+{% endif %}
+
+{% if similar_exercises %}
+Ejercicios similares ya existentes en el banco, para no repetir el mismo enunciado:
+{{ similar_exercises }}
+{% endif %}
+
+Responde ÚNICAMENTE con un objeto JSON válido con esta forma exacta (sin texto adicional antes o después):
+{{ schema_hint }}
+
+{% if previous_error %}
+{{ previous_error }}
+{% endif %}
+
+Recuerda: este ejercicio quedará en estado "borrador" y un docente lo revisará antes de publicarlo — prioriza claridad y corrección sobre originalidad.

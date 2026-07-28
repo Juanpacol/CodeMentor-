@@ -41,6 +41,7 @@ from logica.modules.progress.models import (  # noqa: F401
     StudentBadge,
 )
 from logica.modules.reports.models import ReportJob  # noqa: F401
+from logica.modules.rubrics.models import RubricItem, RubricRun  # noqa: F401
 from logica.modules.users.models import Institution, PasswordResetToken, User  # noqa: F401
 
 # (populated incrementally as each domain module is implemented — see Fase 9+)

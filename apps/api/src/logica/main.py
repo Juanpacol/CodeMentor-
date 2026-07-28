@@ -32,6 +32,7 @@ from logica.modules.observability.router import router as observability_router
 from logica.modules.observability.service import best_effort_actor
 from logica.modules.progress.router import router as progress_router
 from logica.modules.reports.router import router as reports_router
+from logica.modules.rubrics.router import router as rubrics_router
 from logica.modules.sandbox.router import router as sandbox_router
 from logica.modules.users.router import auth_router, users_router
 from logica.workers.inprocess import build_in_process_worker
@@ -205,6 +206,7 @@ def create_app() -> FastAPI:
     app.include_router(rag_router)
     app.include_router(progress_router)
     app.include_router(reports_router)
+    app.include_router(rubrics_router)
     app.include_router(observability_router)
 
     return app

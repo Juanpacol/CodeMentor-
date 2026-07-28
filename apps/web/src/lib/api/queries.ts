@@ -37,6 +37,10 @@ export const qk = {
     detail: (guideId: string) => ['guides', 'detail', guideId] as const,
     published: (groupId: string) => ['guides', 'published', groupId] as const,
   },
+  rubrics: {
+    runs: (groupId: string) => ['rubrics', 'runs', groupId] as const,
+    run: (runId: string) => ['rubrics', 'run', runId] as const,
+  },
   reports: {
     job: (jobId: string) => ['reports', jobId] as const,
     gradebook: (groupId: string) => ['reports', 'gradebook', groupId] as const,

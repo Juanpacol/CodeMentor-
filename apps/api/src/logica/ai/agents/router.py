@@ -23,6 +23,7 @@ from logica.ai.agents.schemas import (
     GradingSuggestionOut,
     GradingSuggestionRequest,
     GroupSummaryOut,
+    GuideExercisesRequest,
     IntegrityAlertOut,
     IntegrityCheckRequest,
     PendingApprovalsOut,
@@ -144,6 +145,29 @@ async def generate_guide(
     )
     await db.commit()
     return guide
+
+
+@router.post("/guides/{guide_id}/exercises", status_code=202)
+async def generate_exercises_for_guide(
+    guide_id: uuid.UUID,
+    payload: GuideExercisesRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    arq_pool: ArqRedis = Depends(get_arq_pool),
+) -> dict[str, str]:
+    """202: un ejercicio por tipo pedido son N llamadas al modelo, igual que la
+    guía. No hay fila de job — los borradores aparecen en el banco a medida que
+    el worker los crea, y el cliente los descubre listando por `guide_id`.
+
+    Se valida el acceso acá y no solo en el worker para que un docente que no
+    administra el grupo reciba un 403 inmediato en vez de un job silencioso."""
+    await guides_service.get_guide_for_teacher(db, user, guide_id)
+    await arq_pool.enqueue_job(
+        "generate_exercises_for_guide_job",
+        str(guide_id),
+        [t.value for t in payload.exercise_types],
+    )
+    return {"status": "encolado"}
 
 
 @router.post("/grading/suggest", response_model=GradingSuggestionOut)

@@ -13,6 +13,7 @@ import { GuidesTab } from './GuidesTab'
 import { MaterialsTab } from './MaterialsTab'
 import { MembersTab } from './MembersTab'
 import { ReportsTab } from './ReportsTab'
+import { RubricTab } from './RubricTab'
 
 export function TeacherGroupDetailPage() {
   const { groupId } = useParams<{ groupId: string }>()
@@ -36,6 +37,7 @@ export function TeacherGroupDetailPage() {
         onChange={setTab}
         tabs={[
           { value: 'temario', label: 'Temario' },
+          { value: 'rubrica', label: 'Rúbrica' },
           { value: 'miembros', label: 'Miembros' },
           { value: 'agentes', label: 'Agentes IA' },
           { value: 'analitica', label: 'Analítica' },
@@ -47,6 +49,7 @@ export function TeacherGroupDetailPage() {
       />
 
       {tab === 'temario' && <CurriculumTab groupId={groupId} />}
+      {tab === 'rubrica' && <RubricTab groupId={groupId} />}
       {tab === 'miembros' && <MembersTab groupId={groupId} />}
       {tab === 'agentes' && <AgentsTab groupId={groupId} />}
       {tab === 'analitica' && <AnalyticsTab groupId={groupId} />}
