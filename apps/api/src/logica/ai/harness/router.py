@@ -14,7 +14,7 @@ import litellm
 import structlog
 
 from logica.config import get_settings
-from logica.core.errors import ServiceUnavailableError
+from logica.core.errors import ErrorCode, ServiceUnavailableError
 
 logger = structlog.get_logger()
 
@@ -82,7 +82,7 @@ class AllProvidersFailedError(ServiceUnavailableError):
     Spanish 503 — not a raw 500 — matching the requirement that an AI
     outage never silently breaks the surrounding feature."""
 
-    code = "ai_all_providers_failed"
+    code = ErrorCode.ai_all_providers_failed
 
     def __init__(self, task: str, errors: list[str]) -> None:
         self.errors = errors
@@ -94,6 +94,7 @@ class AllProvidersFailedError(ServiceUnavailableError):
             # con 429 se leen igual en el mensaje amable, y son problemas
             # distintos. Sin esto el detalle moría en el `logger.error`.
             details={"task": task, "providers": errors},
+            hint="Tu docente puede intentarlo de nuevo en unos minutos.",
         )
 
 

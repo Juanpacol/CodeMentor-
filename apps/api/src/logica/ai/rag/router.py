@@ -30,13 +30,19 @@ async def upload_rag_document(
 ) -> RagDocumentOut:
     filename = file.filename or ""
     if not filename.lower().endswith(_ALLOWED_EXTENSIONS):
-        raise ValidationDomainError("Solo se aceptan archivos .md o .txt")
+        raise ValidationDomainError(
+            "Formato de archivo no soportado",
+            hint="Solo se aceptan archivos .md o .txt.",
+        )
 
     raw = await file.read()
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise ValidationDomainError("El archivo debe estar codificado en UTF-8") from exc
+        raise ValidationDomainError(
+            "No se pudo leer el archivo",
+            hint="Guárdalo con codificación UTF-8 y vuelve a intentarlo.",
+        ) from exc
 
     document = await service.create_rag_document(
         db, user, title=title, text=text, topic_id=topic_id

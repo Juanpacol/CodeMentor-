@@ -7,12 +7,20 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 export class ApiError extends Error {
   status: number
+  code: string
+  /** Alias de `message`, mantenido por compatibilidad con el código existente
+   * que ya lee `err.detail`. */
   detail: string
+  hint?: string
+  requestId?: string
 
-  constructor(status: number, detail: string) {
-    super(detail)
+  constructor(status: number, code: string, message: string, hint?: string, requestId?: string) {
+    super(message)
     this.status = status
-    this.detail = detail
+    this.code = code
+    this.detail = message
+    this.hint = hint
+    this.requestId = requestId
   }
 }
 
@@ -85,18 +93,24 @@ apiClient.use({
   },
 })
 
-/** Extrae el `detail` en español que la API ya devuelve en cada error de
- * dominio ({"detail": "..."}) y lo empaqueta como ApiError tipado. */
+/** Extrae `{code, message, hint, request_id}` que la API ya devuelve en cada
+ * error de dominio y lo empaqueta como ApiError tipado. */
 export async function unwrap<T>(
   promise: Promise<{ data?: T; response: Response; error?: unknown }>,
 ): Promise<T> {
   const { data, response, error } = await promise
   if (response.ok && data !== undefined) return data
-  const detail =
-    error && typeof error === 'object' && 'detail' in error
-      ? String((error as { detail: unknown }).detail)
+  const body = error as
+    | { code?: unknown; message?: unknown; hint?: unknown; request_id?: unknown }
+    | undefined
+  const code = body && typeof body.code === 'string' ? body.code : 'error'
+  const message =
+    body && typeof body.message === 'string'
+      ? body.message
       : `Error inesperado (${response.status})`
-  throw new ApiError(response.status, detail)
+  const hint = body && typeof body.hint === 'string' ? body.hint : undefined
+  const requestId = body && typeof body.request_id === 'string' ? body.request_id : undefined
+  throw new ApiError(response.status, code, message, hint, requestId)
 }
 
 export function isAiUnavailable(err: unknown): err is ApiError {

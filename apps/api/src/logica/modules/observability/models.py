@@ -27,6 +27,7 @@ class ErrorLog(UUIDPkMixin, TimestampMixin, Base):
     exception_type: Mapped[str] = mapped_column(String(200), nullable=False)
     message: Mapped[str] = mapped_column(String(500), nullable=False)
     stacktrace: Mapped[str | None] = mapped_column(Text, nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
 
 def truncate_message(message: str, *, limit: int = 500) -> str:

@@ -19,12 +19,12 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.ai.harness.harness import complete_task
-from logica.core.errors import ValidationDomainError
+from logica.core.errors import ErrorCode, ValidationDomainError
 from logica.modules.users.models import User
 
 
 class StructuredOutputError(ValidationDomainError):
-    code = "ai_invalid_output"
+    code = ErrorCode.ai_invalid_output
 
 
 def _extract_json(text: str) -> str:

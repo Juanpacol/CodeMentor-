@@ -71,6 +71,19 @@ async def list_error_logs_for_user(
     return [redact_stacktrace_for_role(e, user) for e in entries], page_info
 
 
+async def summarize_errors_for_user(
+    db: AsyncSession,
+    user: User,
+    *,
+    date_from: date | None,
+    date_to: date | None,
+) -> list[repository.ErrorSummaryRow]:
+    _ensure_teacher(user)
+    return await repository.summarize_errors(
+        db, user.institution_id, date_from=date_from, date_to=date_to
+    )
+
+
 async def list_audit_logs_for_user(
     db: AsyncSession,
     user: User,

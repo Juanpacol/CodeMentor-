@@ -54,6 +54,7 @@ export const qk = {
   observability: {
     errors: (filters: { statusCode?: number; path?: string; page: number }) =>
       ['observability', 'errors', filters.statusCode ?? 'all', filters.path ?? '', filters.page] as const,
+    errorsSummary: ['observability', 'errors-summary'] as const,
     audit: (filters: { action?: string; page: number }) =>
       ['observability', 'audit', filters.action ?? '', filters.page] as const,
     aiUsage: (groupBy: string) => ['observability', 'ai-usage', groupBy] as const,

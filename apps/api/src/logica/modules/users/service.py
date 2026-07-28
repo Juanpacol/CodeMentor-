@@ -45,8 +45,8 @@ async def _resolve_institution(
             return institutions[0]
 
     raise ValidationDomainError(
-        "No se pudo verificar tu identidad institucional: usa el correo del "
-        "colegio o proporciona tu código de estudiante."
+        "No se pudo verificar tu identidad institucional",
+        hint="Usa el correo del colegio o proporciona tu código de estudiante.",
     )
 
 
@@ -97,7 +97,10 @@ async def authenticate(db: AsyncSession, email: str, password: str) -> TokenPair
         user = await find_user_by_email_any_institution(db, email)
 
     if user is None or not verify_password(password, user.hashed_password):
-        raise ValidationDomainError("Correo o contraseña incorrectos")
+        raise ValidationDomainError(
+            "Correo o contraseña incorrectos",
+            hint="Revisa que no haya errores de tipeo o usa '¿Olvidaste tu contraseña?'.",
+        )
     if not user.is_active:
         raise PermissionDeniedError("Cuenta inactiva")
 

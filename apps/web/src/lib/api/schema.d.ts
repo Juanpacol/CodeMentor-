@@ -1381,6 +1381,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/observability/errors/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Summarize Errors */
+        get: operations["summarize_errors_observability_errors_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/observability/audit": {
         parameters: {
             query?: never;
@@ -1774,6 +1791,8 @@ export interface components {
             message: string;
             /** Stacktrace */
             stacktrace: string | null;
+            /** Request Id */
+            request_id: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1790,6 +1809,20 @@ export interface components {
             page: number;
             /** Page Size */
             page_size: number;
+        };
+        /** ErrorSummaryRowOut */
+        ErrorSummaryRowOut: {
+            /** Exception Type */
+            exception_type: string;
+            /** Count */
+            count: number;
+            /**
+             * Last Seen
+             * Format: date-time
+             */
+            last_seen: string;
+            /** Sample Message */
+            sample_message: string;
         };
         /** EvaluationCreateRequest */
         EvaluationCreateRequest: {
@@ -5876,6 +5909,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorLogPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summarize_errors_observability_errors_summary_get: {
+        parameters: {
+            query?: {
+                date_from?: string | null;
+                date_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorSummaryRowOut"][];
                 };
             };
             /** @description Validation Error */

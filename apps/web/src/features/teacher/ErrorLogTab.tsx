@@ -2,12 +2,65 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { Badge, type TintColor } from '../../components/ui/Badge'
+import { BarList } from '../../components/ui/BarList'
 import { Button } from '../../components/ui/Button'
+import { Card } from '../../components/ui/Card'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Input, Label } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { apiClient, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
+
+/** Item 5 (dashboard de errores frecuentes): ranking por `exception_type`,
+ * no por código HTTP — un mismo 422 puede venir de N validaciones distintas,
+ * pero el tipo de excepción sí distingue qué se está rompiendo. */
+function ErrorsSummary() {
+  const { data, isLoading } = useQuery({
+    queryKey: qk.observability.errorsSummary,
+    queryFn: () => unwrap(apiClient.GET('/observability/errors/summary')),
+  })
+
+  if (isLoading || !data || data.length === 0) return null
+
+  const max = data[0].count
+  const items = data.slice(0, 8).map((row) => ({
+    key: row.exception_type,
+    label: row.exception_type,
+    value: row.count,
+    max,
+    valueLabel: `${row.count}`,
+  }))
+
+  return (
+    <Card className="mb-2">
+      <h2 className="mb-3 text-sm font-medium text-ink">Errores más frecuentes</h2>
+      <BarList items={items} />
+      <details className="mt-3 text-xs text-ink-secondary">
+        <summary className="cursor-pointer">Ver datos</summary>
+        <table className="mt-2 w-full text-left">
+          <thead>
+            <tr>
+              <th className="pr-4">Tipo</th>
+              <th className="pr-4">Ocurrencias</th>
+              <th className="pr-4">Última vez</th>
+              <th>Ejemplo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row) => (
+              <tr key={row.exception_type}>
+                <td className="pr-4">{row.exception_type}</td>
+                <td className="pr-4">{row.count}</td>
+                <td className="pr-4">{new Date(row.last_seen).toLocaleString('es-CO')}</td>
+                <td>{row.sample_message}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
+    </Card>
+  )
+}
 
 const PAGE_SIZE = 25
 
@@ -49,6 +102,8 @@ export function ErrorLogTab() {
 
   return (
     <div className="flex flex-col gap-4">
+      <ErrorsSummary />
+
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <Label htmlFor="err-path">Ruta (opcional)</Label>

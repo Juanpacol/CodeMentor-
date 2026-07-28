@@ -16,6 +16,7 @@ from logica.ai.agents.guide_writer import write_guide
 from logica.ai.agents.models import AgentName
 from logica.config import get_settings
 from logica.core.cancellation import clear_cancel, is_cancelled
+from logica.core.logging import configure_logging
 from logica.db import get_session_factory
 from logica.modules.content.models import TopicGroupStateValue
 from logica.modules.content.repository import get_topic, list_topic_group_states_for_group
@@ -264,6 +265,7 @@ async def record_error_log_job(ctx: dict[str, Any], payload: dict[str, Any]) -> 
             exception_type=payload["exception_type"],
             message=payload["message"],
             stacktrace=payload["stacktrace"],
+            request_id=payload.get("request_id"),
         )
         await db.commit()
 
@@ -314,7 +316,7 @@ cron_jobs = [
 
 
 async def startup(ctx: dict[str, Any]) -> None:
-    pass
+    configure_logging(log_level=get_settings().log_level)
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
