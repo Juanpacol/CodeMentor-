@@ -150,9 +150,10 @@ Requiere la API corriendo (`make up`) — `http://localhost:5173` ya está permi
 
 ### Pasos de configuración
 
-1. **Supabase** (Postgres): crear un proyecto gratuito → `Database > Connection string` (modo `Transaction pooler`, puerto 6543) → habilitar la extensión `vector` desde `Database > Extensions` → aplicar migraciones apuntando `DATABASE_URL` a esa cadena: `cd apps/api && DATABASE_URL=... uv run alembic upgrade head`.
+1. **Supabase** (Postgres): crear un proyecto gratuito → `Database > Connection string` (modo `Transaction pooler`, puerto 6543) → habilitar la extensión `vector` desde `Database > Extensions`. **No hace falta aplicar las migraciones a mano**: el entrypoint del contenedor (`apps/api/docker-entrypoint.sh`) corre `alembic upgrade head` en cada arranque, antes de levantar uvicorn (el `preDeployCommand` de Render es solo para planes pagos, y el free tier corre una sola instancia, así que no hay carrera entre réplicas). Para aplicarlas desde local igual sirve `cd apps/api && DATABASE_URL=... uv run alembic upgrade head`.
 2. **Upstash** (Redis): crear una base gratuita → copiar la `UPSTASH_REDIS_URL` (formato `rediss://...`, con TLS) como `REDIS_URL`.
 3. **Render** (API + worker in-process): "New > Blueprint", apuntar a este repo (detecta `render.yaml` en la raíz automáticamente) → completar en el dashboard las env vars marcadas `sync: false` en el blueprint (`DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS` con la URL real de Vercel, y opcionalmente `GROQ_API_KEY`/`GEMINI_API_KEY`/`LANGFUSE_*`) → Render hace auto-deploy en cada push a `main` sin necesidad de un workflow de GitHub Actions.
+   - **Primer arranque contra una base vacía**: poner `RUN_SEED_ON_START=true` en el dashboard para ese deploy y volverlo a `false` después. Sin al menos una fila en `institutions`, `POST /auth/register` responde 422 (`No se pudo verificar tu identidad institucional…`) para todo intento de registro — ni el correo institucional ni el código de estudiante pueden resolver una institución que no existe. El seed es idempotente (`scripts/seed.py` chequea la institución demo antes de crearla), así que dejarlo prendido no duplica datos; se apaga solo para no sumar segundos al cold start del free tier.
 4. **Vercel** (frontend): "Add New > Project", importar este repo con *root directory* `apps/web` → variable de entorno `VITE_API_URL` apuntando a la URL pública de Render → auto-deploy en cada push a `main`, igual que Render.
 5. **Langfuse Cloud** (opcional): crear proyecto gratuito → `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` en Render, `LANGFUSE_HOST=https://cloud.langfuse.com`.
 
@@ -162,6 +163,7 @@ Requiere la API corriendo (`make up`) — `http://localhost:5173` ya está permi
 |---|---|
 | `ENV` | `prod` (activa rate limiting, HSTS y el worker in-process — ver "Hardening" arriba) |
 | `RUN_WORKER_IN_PROCESS` | `true` |
+| `RUN_SEED_ON_START` | `false` — ponerlo en `true` solo para el primer arranque contra una base vacía (ver paso 3 arriba) |
 | `DATABASE_URL` | cadena de conexión de Supabase |
 | `REDIS_URL` | cadena de conexión de Upstash (`rediss://`) |
 | `JWT_SECRET` | generado automáticamente por Render (`generateValue: true` en el blueprint) |

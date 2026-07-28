@@ -21,6 +21,12 @@ services:
         value: prod
       - key: RUN_WORKER_IN_PROCESS
         value: "true"
+      # Las migraciones (alembic upgrade head) corren siempre en el entrypoint
+      # (apps/api/docker-entrypoint.sh). El seed demo es opt-in: ponerlo en "true"
+      # en el dashboard para el primer arranque de una base vacía y volverlo a
+      # "false" después — sin al menos una institución, /auth/register da 422.
+      - key: RUN_SEED_ON_START
+        value: "false"
       - key: JWT_SECRET
         generateValue: true
       # El resto se configura a mano en el dashboard de Render (secretos y
