@@ -16,6 +16,7 @@ dos tablas nuevas y dejaría un esquema que no explica ninguna de las dos cosas.
 import enum
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -37,6 +38,11 @@ class RubricRunStatus(enum.StrEnum):
     done = "done"
     partial = "partial"
     failed = "failed"
+    # Distinto de `failed`: cancelar es una decisión del docente, no un problema
+    # de la plataforma. Mezclarlos hacía que una corrida cancelada apareciera
+    # como incidente y que el recálculo final del runner pudiera pisarla con
+    # `partial`/`done` según cuántos temas alcanzaron a salir.
+    cancelled = "cancelled"
 
 
 class RubricItemStatus(enum.StrEnum):
@@ -49,6 +55,7 @@ class RubricItemStatus(enum.StrEnum):
     writing_exercises = "writing_exercises"
     done = "done"
     failed = "failed"
+    cancelled = "cancelled"
 
 
 class RubricRun(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
@@ -127,3 +134,9 @@ class RubricItem(UUIDPkMixin, TimestampMixin, Base):
         default=RubricItemStatus.pending,
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # `error_message` es el texto amable; estos dos son el "ver detalle" que le
+    # permite al docente saber si reintentar sirve de algo. Sin ellos, tres
+    # causas muy distintas (clave de API vencida, cuota agotada, el modelo
+    # devolviendo JSON inválido) se leían con la misma frase genérica.
+    error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    error_details: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)

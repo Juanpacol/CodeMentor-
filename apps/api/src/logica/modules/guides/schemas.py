@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -85,6 +86,9 @@ class GuideOut(BaseModel):
     status: GuideStatus
     published_at: datetime | None
     error_message: str | None
+    # Ver `RubricItemOut.error_code`.
+    error_code: str | None = None
+    error_details: dict[str, Any] | None = None
     sources: list[str] | None
     prompt_version: int | None
     created_at: datetime

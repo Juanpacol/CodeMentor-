@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -40,6 +41,10 @@ class RubricItemOut(BaseModel):
     exercises_created: int
     status: RubricItemStatus
     error_message: str | None
+    # El "ver detalle" del docente: `error_message` dice qué pasó en lenguaje
+    # llano, esto dice por qué (qué proveedor de IA, qué validación).
+    error_code: str | None = None
+    error_details: dict[str, Any] | None = None
 
     model_config = {"from_attributes": True}
 

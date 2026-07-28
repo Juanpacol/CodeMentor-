@@ -519,6 +519,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guides/{guide_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Guide
+         * @description Detiene una guía atascada en `generating`, que antes no tenía salida:
+         *     `archive` la rechaza en ese estado y el worker podía no volver nunca.
+         */
+        post: operations["cancel_guide_guides__guide_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guides/{guide_id}/archive": {
         parameters: {
             query?: never;
@@ -1080,6 +1101,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/progress/me/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Activity
+         * @description Serie diaria de práctica, rachas y conexiones — el mapa de actividad.
+         *
+         *     `tz` lo manda el navegador (`Intl.DateTimeFormat().resolvedOptions()`): sin
+         *     él, agrupar en UTC partiría cada día en dos para cualquiera al oeste de
+         *     Greenwich y las rachas se romperían a media tarde.
+         */
+        get: operations["get_my_activity_progress_me_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/groups/{group_id}/progress/lagging": {
         parameters: {
             query?: never;
@@ -1237,6 +1282,65 @@ export interface paths {
         put?: never;
         /** Cancel Rubric Run */
         post: operations["cancel_rubric_run_rubric_runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/groups/{group_id}/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Assignments */
+        get: operations["list_assignments_groups__group_id__assignments_get"];
+        put?: never;
+        /** Create Assignment */
+        post: operations["create_assignment_groups__group_id__assignments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assignments/{assignment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Assignment */
+        delete: operations["delete_assignment_assignments__assignment_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Assignment */
+        patch: operations["update_assignment_assignments__assignment_id__patch"];
+        trace?: never;
+    };
+    "/assignments/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Assignments
+         * @description Lo que le falta al estudiante, de todos sus grupos, ordenado por fecha.
+         *
+         *     Sin `require_role("student")`: un docente que abre su propio panel no debe
+         *     recibir un 403 — simplemente no tiene matrículas y ve una lista vacía.
+         */
+        get: operations["list_my_assignments_assignments_me_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1425,6 +1529,54 @@ export interface components {
             /** Ai Suggested Score */
             ai_suggested_score: number | null;
         };
+        /** AssignmentCreateRequest */
+        AssignmentCreateRequest: {
+            /** Title */
+            title: string;
+            /** Topic Id */
+            topic_id?: string | null;
+            /** Exercise Id */
+            exercise_id?: string | null;
+            /** Due At */
+            due_at?: string | null;
+        };
+        /** AssignmentOut */
+        AssignmentOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Group Id
+             * Format: uuid
+             */
+            group_id: string;
+            /** Title */
+            title: string;
+            /** Topic Id */
+            topic_id: string | null;
+            /** Exercise Id */
+            exercise_id: string | null;
+            /** Due At */
+            due_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * AssignmentUpdateRequest
+         * @description Solo lo que tiene sentido corregir después de asignar. Cambiar el tema o
+         *     el ejercicio sería otra asignación, no una edición de esta.
+         */
+        AssignmentUpdateRequest: {
+            /** Title */
+            title?: string | null;
+            /** Due At */
+            due_at?: string | null;
+        };
         /** AttemptResultOut */
         AttemptResultOut: {
             /**
@@ -1564,6 +1716,23 @@ export interface components {
             enabled_at: string | null;
             /** Scheduled Enable At */
             scheduled_enable_at: string | null;
+        };
+        /**
+         * DailyActivityOut
+         * @description Un día con actividad. Los días sin nada NO vienen en la lista: rellenar
+         *     365 ceros triplicaría la respuesta y el frontend igual tiene que construir
+         *     la rejilla completa del calendario.
+         */
+        DailyActivityOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Submissions */
+            submissions: number;
+            /** Correct */
+            correct: number;
         };
         /** ErrorLogOut */
         ErrorLogOut: {
@@ -1929,6 +2098,12 @@ export interface components {
             published_at: string | null;
             /** Error Message */
             error_message: string | null;
+            /** Error Code */
+            error_code?: string | null;
+            /** Error Details */
+            error_details?: {
+                [key: string]: unknown;
+            } | null;
             /** Sources */
             sources: string[] | null;
             /** Prompt Version */
@@ -1960,7 +2135,7 @@ export interface components {
          *     hace falta una fila aparte para rastrearlo; acá el producto ES la fila.
          * @enum {string}
          */
-        GuideStatus: "generating" | "draft" | "published" | "archived" | "failed";
+        GuideStatus: "generating" | "draft" | "published" | "archived" | "failed" | "cancelled";
         /** GuideTemplateCreateRequest */
         GuideTemplateCreateRequest: {
             /** Name */
@@ -2466,6 +2641,12 @@ export interface components {
             status: components["schemas"]["RubricItemStatus"];
             /** Error Message */
             error_message: string | null;
+            /** Error Code */
+            error_code?: string | null;
+            /** Error Details */
+            error_details?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** RubricItemSpec */
         RubricItemSpec: {
@@ -2482,7 +2663,7 @@ export interface components {
          *     tema y no solo una barra global.
          * @enum {string}
          */
-        RubricItemStatus: "pending" | "acquiring" | "writing_guide" | "writing_exercises" | "done" | "failed";
+        RubricItemStatus: "pending" | "acquiring" | "writing_guide" | "writing_exercises" | "done" | "failed" | "cancelled";
         /** RubricRunCreateRequest */
         RubricRunCreateRequest: {
             /** Name */
@@ -2571,7 +2752,7 @@ export interface components {
          *     guías; colapsarlo a `failed` le diría que no tiene nada cuando tiene ocho.
          * @enum {string}
          */
-        RubricRunStatus: "pending" | "running" | "done" | "partial" | "failed";
+        RubricRunStatus: "pending" | "running" | "done" | "partial" | "failed" | "cancelled";
         /** ScheduleEnableRequest */
         ScheduleEnableRequest: {
             /**
@@ -2579,6 +2760,57 @@ export interface components {
              * Format: date-time
              */
             enable_at: string;
+        };
+        /** StudentActivityOut */
+        StudentActivityOut: {
+            /** Days */
+            days: components["schemas"]["DailyActivityOut"][];
+            /** Current Streak */
+            current_streak: number;
+            /** Longest Streak */
+            longest_streak: number;
+            /** Active Days */
+            active_days: number;
+            /** Total Submissions */
+            total_submissions: number;
+            /** Logins */
+            logins: number;
+        };
+        /**
+         * StudentAssignmentOut
+         * @description La vista del estudiante: la asignación más si ya la cumplió.
+         *
+         *     `done` se resuelve contra sus envíos correctos de práctica, no se guarda: una
+         *     columna de "entregado" sería una segunda fuente de verdad que habría que
+         *     mantener sincronizada con cada envío.
+         */
+        StudentAssignmentOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Group Id
+             * Format: uuid
+             */
+            group_id: string;
+            /** Group Name */
+            group_name: string;
+            /** Title */
+            title: string;
+            /** Topic Id */
+            topic_id: string | null;
+            /** Exercise Id */
+            exercise_id: string | null;
+            /** Due At */
+            due_at: string | null;
+            /** Done */
+            done: boolean;
+            /** Total Exercises */
+            total_exercises: number;
+            /** Solved Exercises */
+            solved_exercises: number;
         };
         /** StudentProgressOut */
         StudentProgressOut: {
@@ -3894,6 +4126,37 @@ export interface operations {
             };
         };
     };
+    cancel_guide_guides__guide_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                guide_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     archive_guide_guides__guide_id__archive_post: {
         parameters: {
             query?: never;
@@ -5013,6 +5276,38 @@ export interface operations {
             };
         };
     };
+    get_my_activity_progress_me_activity_get: {
+        parameters: {
+            query?: {
+                days?: number;
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentActivityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_lagging_students_groups__group_id__progress_lagging_get: {
         parameters: {
             query?: never;
@@ -5349,6 +5644,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_assignments_groups__group_id__assignments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_assignment_groups__group_id__assignments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignmentCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_assignment_assignments__assignment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_assignment_assignments__assignment_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignmentUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_my_assignments_assignments_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentAssignmentOut"][];
                 };
             };
         };

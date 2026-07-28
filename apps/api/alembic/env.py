@@ -19,6 +19,7 @@ from logica.ai.rag.models import RagChunk, RagDocument  # noqa: F401
 from logica.config import get_settings
 from logica.core.audit import AuditLog  # noqa: F401
 from logica.db import Base
+from logica.modules.assignments.models import Assignment  # noqa: F401
 from logica.modules.content.models import Language, Topic, TopicGroupState  # noqa: F401
 from logica.modules.evaluations.models import (  # noqa: F401
     Evaluation,

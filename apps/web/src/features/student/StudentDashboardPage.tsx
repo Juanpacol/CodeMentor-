@@ -12,8 +12,9 @@ import { Skeleton } from '../../components/ui/Skeleton'
 import { pushToast } from '../../components/ui/toastStore'
 import { useTilt } from '../../hooks/useTilt'
 import { apiClient, ApiError, unwrap } from '../../lib/api/client'
-import { staggerContainer, staggerItem } from '../../lib/motion'
 import { qk } from '../../lib/api/queries'
+import { staggerContainer, staggerItem } from '../../lib/motion'
+import { PendingAssignments } from './PendingAssignments'
 
 function JoinGroupDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient()
@@ -92,6 +93,10 @@ export function StudentDashboardPage() {
 
   return (
     <div>
+      {/* Antes de los grupos: lo primero que un estudiante necesita saber al
+        * entrar es qué le falta y para cuándo, no en qué clases está. */}
+      <PendingAssignments />
+
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-ink">Mis grupos</h1>
         <Button onClick={() => setJoinOpen(true)}>Unirme con código</Button>

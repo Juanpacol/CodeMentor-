@@ -6,10 +6,12 @@ import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Callout } from '../../components/ui/Callout'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { ErrorDetails } from '../../components/ui/ErrorDetails'
 import { Input, Label, Textarea } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Spinner } from '../../components/ui/Spinner'
 import { pushToast } from '../../components/ui/toastStore'
+import { useDraftState } from '../../hooks/useDraftState'
 import { apiClient, ApiError, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
 import type { components } from '../../lib/api/schema'
@@ -21,7 +23,7 @@ type TopicLevel = components['schemas']['TopicLevel']
  * backend rechaza con 409 más allá de esto, así que avisamos antes de enviar. */
 const MAX_ITEMS = 15
 
-const RUN_TERMINAL = ['done', 'partial', 'failed']
+const RUN_TERMINAL = ['done', 'partial', 'failed', 'cancelled']
 
 const RUN_STATUS_LABEL: Record<string, string> = {
   pending: 'En cola',
@@ -29,6 +31,7 @@ const RUN_STATUS_LABEL: Record<string, string> = {
   done: 'Completada',
   partial: 'Completada parcialmente',
   failed: 'Falló',
+  cancelled: 'Cancelada',
 }
 
 const RUN_STATUS_TINT: Record<string, 'neutral' | 'sky' | 'mint' | 'yellow' | 'rose'> = {
@@ -37,6 +40,8 @@ const RUN_STATUS_TINT: Record<string, 'neutral' | 'sky' | 'mint' | 'yellow' | 'r
   done: 'mint',
   partial: 'yellow',
   failed: 'rose',
+  // Neutral y no `rose`: cancelar es una decisión del docente, no un incidente.
+  cancelled: 'neutral',
 }
 
 const ITEM_STATUS_LABEL: Record<string, string> = {
@@ -46,6 +51,7 @@ const ITEM_STATUS_LABEL: Record<string, string> = {
   writing_exercises: 'Creando ejercicios…',
   done: 'Listo',
   failed: 'Falló',
+  cancelled: 'Cancelado',
 }
 
 const ITEM_STATUS_TINT: Record<string, 'neutral' | 'sky' | 'lavender' | 'mint' | 'rose'> = {
@@ -55,6 +61,7 @@ const ITEM_STATUS_TINT: Record<string, 'neutral' | 'sky' | 'lavender' | 'mint' |
   writing_exercises: 'lavender',
   done: 'mint',
   failed: 'rose',
+  cancelled: 'neutral',
 }
 
 const SUGGESTED_TYPES: ExerciseType[] = ['multiple_choice', 'true_false', 'find_error']
@@ -80,17 +87,25 @@ function parseTopics(raw: string, fallbackLevel: TopicLevel) {
 
 export function RubricTab({ groupId }: { groupId: string }) {
   const queryClient = useQueryClient()
+  // `error` no se persiste: es la consecuencia de un envío concreto, y
+  // resucitarlo al volver a la pestaña señalaría un fallo que ya no existe.
   const [error, setError] = useState<string | null>(null)
-  const [openRunId, setOpenRunId] = useState<string | null>(null)
 
-  const [name, setName] = useState('')
-  const [folderName, setFolderName] = useState('')
-  const [languageId, setLanguageId] = useState('')
-  const [templateId, setTemplateId] = useState('')
-  const [defaultLevel, setDefaultLevel] = useState<TopicLevel>('basico')
-  const [topicsRaw, setTopicsRaw] = useState('')
-  const [acquireContent, setAcquireContent] = useState(true)
-  const [exerciseTypes, setExerciseTypes] = useState<ExerciseType[]>(SUGGESTED_TYPES)
+  // Un temario son varios minutos de escritura. Ver otra pestaña y volver no
+  // puede costarlos — de ahí el borrador por grupo (ver `useDraftState`).
+  const key = `rubrica:${groupId}`
+  const [openRunId, setOpenRunId] = useDraftState<string | null>(`${key}:openRunId`, null)
+  const [name, setName] = useDraftState(`${key}:name`, '')
+  const [folderName, setFolderName] = useDraftState(`${key}:folderName`, '')
+  const [languageId, setLanguageId] = useDraftState(`${key}:languageId`, '')
+  const [templateId, setTemplateId] = useDraftState(`${key}:templateId`, '')
+  const [defaultLevel, setDefaultLevel] = useDraftState<TopicLevel>(`${key}:level`, 'basico')
+  const [topicsRaw, setTopicsRaw] = useDraftState(`${key}:topicsRaw`, '')
+  const [acquireContent, setAcquireContent] = useDraftState(`${key}:acquireContent`, true)
+  const [exerciseTypes, setExerciseTypes] = useDraftState<ExerciseType[]>(
+    `${key}:exerciseTypes`,
+    SUGGESTED_TYPES,
+  )
 
   const { data: languages } = useQuery({
     queryKey: qk.languages,
@@ -168,7 +183,7 @@ export function RubricTab({ groupId }: { groupId: string }) {
         }),
       ),
     onSuccess: () => {
-      pushToast('Se detendrá al terminar el tema en curso', 'default')
+      pushToast('Cancelando… se detiene en unos segundos', 'default')
       void queryClient.invalidateQueries({ queryKey: qk.rubrics.runs(groupId) })
     },
     onError: (err) =>
@@ -356,24 +371,29 @@ export function RubricTab({ groupId }: { groupId: string }) {
             {detail.items.map((item) => (
               <li
                 key={item.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-hairline px-3 py-2"
+                className="rounded-card border border-hairline px-3 py-2"
               >
-                <span className="font-medium">{item.topic_name}</span>
-                <span className="flex items-center gap-2 text-sm text-muted">
-                  {item.status === 'done' && (
-                    <>
-                      <span>{item.sources_ingested} fuentes</span>
-                      <span>·</span>
-                      <span>{item.exercises_created} ejercicios</span>
-                    </>
-                  )}
-                  {item.error_message && item.status === 'failed' && (
-                    <span className="text-sm">{item.error_message}</span>
-                  )}
-                  <Badge tint={ITEM_STATUS_TINT[item.status] ?? 'neutral'}>
-                    {ITEM_STATUS_LABEL[item.status] ?? item.status}
-                  </Badge>
-                </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{item.topic_name}</span>
+                  <span className="flex items-center gap-2 text-sm text-muted">
+                    {item.status === 'done' && (
+                      <>
+                        <span>{item.sources_ingested} fuentes</span>
+                        <span>·</span>
+                        <span>{item.exercises_created} ejercicios</span>
+                      </>
+                    )}
+                    {item.error_message && item.status === 'failed' && (
+                      <span className="text-sm">{item.error_message}</span>
+                    )}
+                    <Badge tint={ITEM_STATUS_TINT[item.status] ?? 'neutral'}>
+                      {ITEM_STATUS_LABEL[item.status] ?? item.status}
+                    </Badge>
+                  </span>
+                </div>
+                {item.status === 'failed' && (
+                  <ErrorDetails code={item.error_code} details={item.error_details} />
+                )}
               </li>
             ))}
           </ol>

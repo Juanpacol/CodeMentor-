@@ -193,8 +193,19 @@ async def test_audit_log_listing_and_filters(client: AsyncClient, institution: I
     resp = await client.get("/observability/audit", headers=auth_headers(teacher_access))
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["total"] == 1
-    assert body["items"][0]["action"] == "role_changed"
+    # Los dos `register_and_login` de arriba también dejan rastro: el login se
+    # audita para poder contar conexiones en el perfil del estudiante (no hay
+    # tabla de sesiones — los refresh tokens son JWT sin fila en la BD).
+    acciones = [item["action"] for item in body["items"]]
+    assert acciones.count("role_changed") == 1
+    assert acciones.count("login") == 2
+
+    solo_roles = await client.get(
+        "/observability/audit",
+        params={"action": "role_changed"},
+        headers=auth_headers(teacher_access),
+    )
+    assert solo_roles.json()["total"] == 1
 
     filtered = await client.get(
         "/observability/audit",

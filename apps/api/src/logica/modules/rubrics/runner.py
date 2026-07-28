@@ -20,6 +20,7 @@ un `rollback()` + relectura en el `except SQLAlchemyError`.
 import asyncio
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 from redis.asyncio import Redis
@@ -31,6 +32,7 @@ from logica.ai.agents.guide_writer import write_guide
 from logica.ai.harness.budget import check_budget
 from logica.ai.rag.acquire import AcquiredSource, acquire_for_topic
 from logica.ai.rag.ingestion import ingest_document
+from logica.core.cancellation import clear_cancel, is_cancelled
 from logica.core.errors import (
     ConflictError,
     LogicaError,
@@ -120,6 +122,23 @@ async def _ingest_sources(db: AsyncSession, run: RubricRun, item: RubricItem, to
     return ingested
 
 
+class _Cancelled(Exception):
+    """Señal interna de "el docente canceló".
+
+    No es un `LogicaError` porque nunca sale de este módulo: el bucle la traduce
+    a `status = cancelled`. Una excepción y no un valor de retorno para poder
+    cortar desde cualquier profundidad del tema sin que cada etapa tenga que
+    propagar un booleano.
+    """
+
+
+async def _checkpoint(redis: Redis, run_id: uuid.UUID) -> None:
+    """Punto seguro para abandonar. Se llama entre etapas —nunca a mitad de una
+    escritura— para que cancelar no deje guías atrapadas en `generating`."""
+    if await is_cancelled(redis, "rubric_run", run_id):
+        raise _Cancelled
+
+
 async def _process_item(
     db: AsyncSession, redis: Redis, run: RubricRun, item: RubricItem, teacher: User
 ) -> None:
@@ -134,10 +153,12 @@ async def _process_item(
     await db.commit()
 
     # 2. Material de referencia.
+    await _checkpoint(redis, run.id)
     if run.acquire_content:
         item.sources_ingested = await _ingest_sources(db, run, item, topic)
     item.status = RubricItemStatus.writing_guide
     await db.commit()
+    await _checkpoint(redis, run.id)
 
     # 3. La guía. `write_guide` se llama en línea y no con otro `enqueue_job`
     # porque la rúbrica necesita saber si la guía salió antes de generarle
@@ -158,9 +179,17 @@ async def _process_item(
     item.guide_id = guide.id
     await db.commit()
 
-    await write_guide(db, redis, guide_id=guide.id)
+    # La guía es la etapa larga (una llamada al modelo por sección), así que se
+    # le pasa la señal para que corte entre secciones y no solo al terminarlas.
+    await write_guide(
+        db,
+        redis,
+        guide_id=guide.id,
+        should_cancel=lambda: is_cancelled(redis, "rubric_run", run.id),
+    )
     await db.commit()
     await db.refresh(guide)
+    await _checkpoint(redis, run.id)
 
     if guide.status == GuideStatus.failed:
         # `write_guide` no propaga: marca la guía y devuelve. El motivo real ya
@@ -172,6 +201,7 @@ async def _process_item(
 
     item.status = RubricItemStatus.writing_exercises
     await db.commit()
+    await _checkpoint(redis, run.id)
 
     # 4. Ejercicios de esa guía.
     exercises = await generate_exercises_for_guide(
@@ -186,7 +216,14 @@ async def _process_item(
     await db.commit()
 
 
-async def _mark_item_failed(db: AsyncSession, item_id: uuid.UUID, message: str) -> None:
+async def _mark_item_failed(
+    db: AsyncSession,
+    item_id: uuid.UUID,
+    message: str,
+    *,
+    code: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> None:
     """Recarga el ítem antes de escribirlo. Después de un `rollback` los atributos
     del objeto quedan expirados, y refrescarlos desde dentro del `except` es el
     error que `content/service.py::enable_scheduled_topics` documenta."""
@@ -195,6 +232,18 @@ async def _mark_item_failed(db: AsyncSession, item_id: uuid.UUID, message: str) 
         return
     item.status = RubricItemStatus.failed
     item.error_message = message[:1000]
+    item.error_code = code
+    item.error_details = details
+    await db.commit()
+
+
+async def _mark_item_cancelled(db: AsyncSession, item_id: uuid.UUID) -> None:
+    """Sin `error_message`: cancelar no es un error, y ponerle uno haría que la
+    UI lo pintara como incidente."""
+    item = await db.get(RubricItem, item_id)
+    if item is None:  # pragma: no cover — la fila la creamos nosotros
+        return
+    item.status = RubricItemStatus.cancelled
     await db.commit()
 
 
@@ -218,21 +267,20 @@ async def run_rubric(db: AsyncSession, redis: Redis, *, run_id: uuid.UUID) -> Ru
     items = await repository.list_items(db, run.id)
     completed = 0
     aborted_reason: str | None = None
+    failures: list[tuple[str, str]] = []
+    cancelled = False
 
     for index, item in enumerate(items):
         item_id = item.id
         if index:
             await asyncio.sleep(ITEM_DELAY_SECONDS)
 
-        # Cancelación: `cancel_run` deja el run en `failed` y el orquestador lo
-        # ve entre temas. No se interrumpe un tema a medias — arq no expone
-        # cancelación y cortar en mitad de una guía dejaría basura en `generating`.
-        await db.refresh(run)
-        if run.status == RubricRunStatus.failed:
-            aborted_reason = run.error_message or "Cancelada"
-            break
-
         try:
+            # Cancelación: la señal se consulta acá y también dentro del tema
+            # (`_checkpoint`) y entre las secciones de la guía. Antes solo se
+            # miraba en este punto, y como un tema son ~7 llamadas al modelo,
+            # cancelar tardaba minutos en notarse y parecía no funcionar.
+            await _checkpoint(redis, run.id)
             # Chequeo previo del presupuesto: `write_guide` no propaga el
             # `ConflictError` de la cuota (marca la guía como fallida y devuelve),
             # así que sin esto la corrida seguiría creando temas y guías vacías
@@ -241,37 +289,77 @@ async def run_rubric(db: AsyncSession, redis: Redis, *, run_id: uuid.UUID) -> Ru
             await _process_item(db, redis, run, item, teacher)
             if item.status == RubricItemStatus.done:
                 completed += 1
+        except _Cancelled:
+            # El tema a medias queda en `cancelled`, no en `failed`: no se cayó,
+            # se le pidió parar. Lo ya escrito (tema, guía, ejercicios) se
+            # conserva como borrador — ver `service.cancel_run`.
+            await db.rollback()
+            await _mark_item_cancelled(db, item_id)
+            cancelled = True
+            logger.info("rubric_run_cancelled_midway", run_id=str(run_id), topic=item.topic_name)
+            break
         except (ConflictError, ServiceUnavailableError) as exc:
             # Condiciones globales: presupuesto agotado o cadena de proveedores
             # caída. Seguir con el siguiente tema repite el mismo fallo más lento.
             await db.rollback()
-            await _mark_item_failed(db, item_id, exc.message)
+            await _mark_item_failed(db, item_id, exc.message, code=exc.code, details=exc.details)
             aborted_reason = exc.message
+            failures.append((item.topic_name, exc.message))
             logger.warning("rubric_run_aborted", run_id=str(run_id), error=exc.message)
             break
         except LogicaError as exc:
             await db.rollback()
-            await _mark_item_failed(db, item_id, exc.message)
+            await _mark_item_failed(db, item_id, exc.message, code=exc.code, details=exc.details)
+            failures.append((item.topic_name, exc.message))
             logger.warning(
                 "rubric_item_failed", run_id=str(run_id), topic=item.topic_name, error=exc.message
             )
-        except SQLAlchemyError:
+        except SQLAlchemyError as exc:
             await db.rollback()
-            await _mark_item_failed(db, item_id, "Error de base de datos al generar este tema")
+            await _mark_item_failed(
+                db,
+                item_id,
+                "Error de base de datos al generar este tema",
+                code="db_error",
+                # El mensaje al docente se queda genérico a propósito, pero el
+                # detalle tiene que existir en alguna parte consultable: antes
+                # solo vivía en el log del servidor, al que él no tiene acceso.
+                details={"exception": type(exc).__name__, "error": str(exc)[:1000]},
+            )
+            failures.append((item.topic_name, "error de base de datos"))
             logger.exception("rubric_item_row_failed", run_id=str(run_id), item_id=str(item_id))
 
     run = await db.get(RubricRun, run_id) or run
-    if completed == len(items):
-        run.status = RubricRunStatus.done
-    elif completed:
-        # Ni `done` ni `failed`: 8 de 10 temas es el resultado común bajo los
-        # límites del tier gratuito, y ambos extremos le mentirían al docente.
-        run.status = RubricRunStatus.partial
+    if cancelled:
+        # `cancelled` gana sobre el recálculo: con 8 de 10 temas hechos, marcar
+        # `partial` borraría el hecho de que el docente pidió parar.
+        run.status = RubricRunStatus.cancelled
+        run.error_message = f"Cancelada por el docente — {completed} de {len(items)} temas listos"
     else:
-        run.status = RubricRunStatus.failed
-    run.error_message = aborted_reason
+        if completed == len(items):
+            run.status = RubricRunStatus.done
+        elif completed:
+            # Ni `done` ni `failed`: 8 de 10 temas es el resultado común bajo los
+            # límites del tier gratuito, y ambos extremos le mentirían al docente.
+            run.status = RubricRunStatus.partial
+        else:
+            run.status = RubricRunStatus.failed
+        # Antes esto solo se llenaba si la corrida abortó, así que una corrida
+        # `partial` no decía en ninguna parte QUÉ temas se cayeron: el docente
+        # tenía que abrir el detalle y revisar ítem por ítem.
+        if aborted_reason:
+            run.error_message = aborted_reason
+        elif failures:
+            resumen = "; ".join(f"{topic}: {motivo}" for topic, motivo in failures)
+            run.error_message = f"{len(failures)} de {len(items)} temas fallaron — {resumen}"[:2000]
+        else:
+            run.error_message = None
     run.completed_at = datetime.now(UTC)
     await db.commit()
+
+    # La señal ya cumplió: dejarla viva haría que un reintento de esta corrida
+    # se cancelara solo al arrancar.
+    await clear_cancel(redis, "rubric_run", run_id)
 
     logger.info(
         "rubric_run_finished",

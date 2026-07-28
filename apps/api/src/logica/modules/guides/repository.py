@@ -8,6 +8,7 @@ llamador: son tres tablas nuevas y el filtro en el borde es más difícil de
 olvidar que una comprobación repetida en cada servicio."""
 
 import uuid
+from typing import Any
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -142,9 +143,24 @@ async def mark_guide_drafted(
     guide.error_message = None
 
 
-async def mark_guide_failed(db: AsyncSession, guide: Guide, error_message: str) -> None:
+async def mark_guide_failed(
+    db: AsyncSession,
+    guide: Guide,
+    error_message: str,
+    *,
+    error_code: str | None = None,
+    error_details: dict[str, Any] | None = None,
+) -> None:
     guide.status = GuideStatus.failed
     guide.error_message = error_message
+    # Ver `Guide.error_code`: el mensaje es para leer, esto es para diagnosticar.
+    guide.error_code = error_code
+    guide.error_details = error_details
+
+
+async def mark_guide_cancelled(db: AsyncSession, guide: Guide) -> None:
+    """Sin `error_message`: cancelar es una decisión, no un fallo."""
+    guide.status = GuideStatus.cancelled
 
 
 async def list_guides_for_folder(

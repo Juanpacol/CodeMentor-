@@ -2,10 +2,12 @@ import uuid
 
 from arq import ArqRedis
 from fastapi import APIRouter, Depends
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.core.arq_dep import get_arq_pool
 from logica.core.permissions import require_role
+from logica.core.redis_dep import get_redis
 from logica.db import get_db
 from logica.modules.rubrics import service
 from logica.modules.rubrics.models import RubricRun
@@ -79,7 +81,8 @@ async def cancel_rubric_run(
     run_id: uuid.UUID,
     user: User = Depends(RequireTeacher),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
 ) -> RubricRun:
-    run = await service.cancel_run(db, user, run_id)
+    run = await service.cancel_run(db, redis, user, run_id)
     await db.commit()
     return run

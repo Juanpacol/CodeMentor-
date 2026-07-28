@@ -6,13 +6,16 @@ import { Button } from '../../components/ui/Button'
 import { Callout } from '../../components/ui/Callout'
 import { Dialog } from '../../components/ui/Dialog'
 import { EmptyState } from '../../components/ui/EmptyState'
-import { Input } from '../../components/ui/Input'
+import { ErrorDetails } from '../../components/ui/ErrorDetails'
+import { Input, Textarea } from '../../components/ui/Input'
 import { Markdown } from '../../components/ui/Markdown'
 import { Select } from '../../components/ui/Select'
 import { Spinner } from '../../components/ui/Spinner'
 import { pushToast } from '../../components/ui/toastStore'
+import { useDraftState } from '../../hooks/useDraftState'
 import { apiClient, ApiError, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
+import { parseTemplateText } from './parseTemplateText'
 
 type Section = { heading: string; instructions: string }
 
@@ -22,6 +25,7 @@ const STATUS_LABEL: Record<string, string> = {
   published: 'Publicada',
   archived: 'Archivada',
   failed: 'Falló',
+  cancelled: 'Cancelada',
 }
 
 const STATUS_TINT: Record<string, 'neutral' | 'lavender' | 'mint' | 'rose'> = {
@@ -30,9 +34,16 @@ const STATUS_TINT: Record<string, 'neutral' | 'lavender' | 'mint' | 'rose'> = {
   published: 'mint',
   archived: 'neutral',
   failed: 'rose',
+  // Neutral y no `rose`: cancelar es una decisión, no un fallo.
+  cancelled: 'neutral',
 }
 
 const EMPTY_SECTION: Section = { heading: '', instructions: '' }
+
+/** Cada sección es una llamada al modelo por guía, así que el tope acota el
+ * costo. 15 y no 10 porque los formatos institucionales reales rondan las 6-8 y
+ * el margen evita que importar uno completo se corte a la mitad. */
+const MAX_SECTIONS = 15
 
 export function GuidesTab({ groupId }: { groupId: string }) {
   const queryClient = useQueryClient()
@@ -44,10 +55,20 @@ export function GuidesTab({ groupId }: { groupId: string }) {
 
   const [folderName, setFolderName] = useState('')
   const [selectedFolderId, setSelectedFolderId] = useState('')
-  const [templateName, setTemplateName] = useState('')
-  const [templateTone, setTemplateTone] = useState('cercano')
-  const [templateLevel, setTemplateLevel] = useState('basico')
-  const [sections, setSections] = useState<Section[]>([{ ...EMPTY_SECTION }])
+
+  // Solo el formulario de plantilla se persiste: es el largo (varias secciones
+  // redactadas a mano) y el que dolía perder al cambiar de pestaña. Ver
+  // `useDraftState`.
+  const key = `guias:${groupId}`
+  const [templateName, setTemplateName] = useDraftState(`${key}:templateName`, '')
+  const [templateTone, setTemplateTone] = useDraftState(`${key}:templateTone`, 'cercano')
+  const [templateLevel, setTemplateLevel] = useDraftState(`${key}:templateLevel`, 'basico')
+  const [sections, setSections] = useDraftState<Section[]>(`${key}:sections`, [
+    { ...EMPTY_SECTION },
+  ])
+  // No se persiste como borrador: es material de paso, y una vez convertido en
+  // secciones dejarlo ahí solo invita a importarlo dos veces.
+  const [pasted, setPasted] = useState('')
   const [genTemplateId, setGenTemplateId] = useState('')
   const [genTopicId, setGenTopicId] = useState('')
 
@@ -99,6 +120,13 @@ export function GuidesTab({ groupId }: { groupId: string }) {
 
   const onError = (fallback: string) => (err: unknown) =>
     setError(err instanceof ApiError ? err.detail : fallback)
+
+  // Mismas reglas que `GuideSectionSpec` en el backend: título no vacío e
+  // instrucciones de 10 caracteres para arriba, en TODAS las secciones.
+  const templateCanSubmit =
+    templateName.trim() !== '' &&
+    sections.length > 0 &&
+    sections.every((s) => s.heading.trim() !== '' && s.instructions.trim().length >= 10)
 
   const createFolder = useMutation({
     mutationFn: (name: string) =>
@@ -194,6 +222,20 @@ export function GuidesTab({ groupId }: { groupId: string }) {
       invalidateGuides()
     },
     onError: onError('No se pudo publicar la guía'),
+  })
+
+  const cancelGuide = useMutation({
+    mutationFn: (guideId: string) =>
+      unwrap(
+        apiClient.POST('/guides/{guide_id}/cancel', {
+          params: { path: { guide_id: guideId } },
+        }),
+      ),
+    onSuccess: () => {
+      pushToast('Generación cancelada', 'default')
+      invalidateGuides()
+    },
+    onError: onError('No se pudo cancelar la guía'),
   })
 
   const archive = useMutation({
@@ -381,6 +423,58 @@ export function GuidesTab({ groupId }: { groupId: string }) {
             </div>
           </div>
 
+          {/* El docente casi siempre ya tiene el formato escrito en Word o en
+            * un documento compartido: llenarlo sección por sección era volver a
+            * teclear algo que ya existe. Lo pegado se parsea a filas editables
+            * —no se guarda directo— para que revise antes. */}
+          <details className="rounded-card border border-hairline p-3">
+            <summary className="cursor-pointer text-xs font-medium text-ink-secondary">
+              Pegar un formato que ya tienes, o subirlo
+            </summary>
+            <div className="mt-3 flex flex-col gap-2">
+              <Textarea
+                aria-label="Formato de guía para importar"
+                rows={6}
+                placeholder={'## Introducción\nContextualiza el tema…\n\n## Objetivos\nUn objetivo general…'}
+                value={pasted}
+                onChange={(e) => setPasted(e.target.value)}
+              />
+              <p className="text-xs text-muted">
+                Reconoce títulos markdown (<code>##</code>) y, si no hay, toma la primera línea
+                de cada bloque separado por una línea en blanco.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={parseTemplateText(pasted).length === 0}
+                  onClick={() => {
+                    setSections(parseTemplateText(pasted).slice(0, MAX_SECTIONS))
+                    setPasted('')
+                  }}
+                >
+                  Convertir en secciones
+                </Button>
+                {/* Se lee en el navegador con `file.text()`: es texto plano y no
+                  * necesita endpoint de subida, a diferencia del material RAG. */}
+                <label className="cursor-pointer text-sm text-ink-secondary underline hover:text-ink">
+                  Subir .md o .txt
+                  <input
+                    type="file"
+                    accept=".md,.txt"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      setPasted(await file.text())
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+          </details>
+
           <div className="flex flex-col gap-3">
             <p className="text-xs font-medium text-ink-secondary">
               Secciones (una llamada a la IA por sección)
@@ -397,9 +491,10 @@ export function GuidesTab({ groupId }: { groupId: string }) {
                     )
                   }
                 />
-                <Input
+                <Textarea
                   aria-label={`Instrucciones de la sección ${index + 1}`}
                   className="mt-2"
+                  rows={2}
                   placeholder="Qué debe contener (mínimo 10 caracteres)"
                   value={section.instructions}
                   onChange={(e) =>
@@ -408,6 +503,11 @@ export function GuidesTab({ groupId }: { groupId: string }) {
                     )
                   }
                 />
+                {section.heading.trim() !== '' && section.instructions.trim().length < 10 && (
+                  <p className="mt-1 text-xs text-error">
+                    El backend exige al menos 10 caracteres de instrucciones.
+                  </p>
+                )}
                 {sections.length > 1 && (
                   <Button
                     variant="secondary"
@@ -423,14 +523,19 @@ export function GuidesTab({ groupId }: { groupId: string }) {
             <Button
               variant="secondary"
               size="sm"
-              disabled={sections.length >= 10}
+              disabled={sections.length >= MAX_SECTIONS}
               onClick={() => setSections((prev) => [...prev, { ...EMPTY_SECTION }])}
             >
               Añadir sección
             </Button>
           </div>
 
-          <Button disabled={saveTemplate.isPending} onClick={() => saveTemplate.mutate()}>
+          {/* Antes el botón dejaba enviar una plantilla que el backend rechaza,
+            * y el 422 llegaba sin decir cuál sección estaba mal. */}
+          <Button
+            disabled={saveTemplate.isPending || !templateCanSubmit}
+            onClick={() => saveTemplate.mutate()}
+          >
             {saveTemplate.isPending ? 'Guardando…' : 'Guardar plantilla'}
           </Button>
         </div>
@@ -486,12 +591,27 @@ export function GuidesTab({ groupId }: { groupId: string }) {
             </div>
 
             {openGuide.status === 'failed' && (
-              <Callout tone="error">{openGuide.error_message ?? 'La generación falló.'}</Callout>
+              <div>
+                <Callout tone="error">{openGuide.error_message ?? 'La generación falló.'}</Callout>
+                <ErrorDetails code={openGuide.error_code} details={openGuide.error_details} />
+              </div>
             )}
 
             {openGuide.status === 'generating' && (
-              <div className="flex items-center gap-2 text-sm text-ink-secondary">
-                <Spinner className="size-4" /> Redactando las secciones…
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="flex items-center gap-2 text-sm text-ink-secondary">
+                  <Spinner className="size-4" /> Redactando las secciones…
+                </span>
+                {/* Sin esto, una guía cuya generación se atasca no tiene salida:
+                  * `Archivar` la rechaza justamente en `generating`. */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={cancelGuide.isPending}
+                  onClick={() => cancelGuide.mutate(openGuide.id)}
+                >
+                  {cancelGuide.isPending ? 'Cancelando…' : 'Cancelar generación'}
+                </Button>
               </div>
             )}
 

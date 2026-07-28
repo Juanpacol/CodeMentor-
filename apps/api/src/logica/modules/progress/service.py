@@ -5,7 +5,8 @@ inmediata — que es la señal más fiel de dominio continuo; las evaluaciones
 "dominio por tema/lenguaje"."""
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,8 +17,10 @@ from logica.modules.progress import repository
 from logica.modules.progress.models import AcademicPeriod, Badge, BadgeCriteria, StudentBadge
 from logica.modules.progress.schemas import (
     BadgeOut,
+    DailyActivityOut,
     LaggingStudentOut,
     LanguageMasteryOut,
+    StudentActivityOut,
     StudentProgressOut,
     TopicMasteryOut,
 )
@@ -167,6 +170,71 @@ async def evaluate_and_award_badges(
                 awarded.append(earned)
 
     return awarded
+
+
+def _streaks(active_days: set[date], today: date) -> tuple[int, int]:
+    """(racha actual, racha máxima) en días consecutivos con actividad.
+
+    La racha actual cuenta hacia atrás desde hoy y **tolera que hoy esté
+    vacío**: a las 9 a.m. todavía no practicaste, y decirle a alguien que
+    perdió su racha de 20 días por eso lo castiga por la hora en que abre la
+    página. Se rompe solo cuando ayer tampoco hubo actividad.
+    """
+    if not active_days:
+        return 0, 0
+
+    current = 0
+    cursor = today if today in active_days else today - timedelta(days=1)
+    while cursor in active_days:
+        current += 1
+        cursor -= timedelta(days=1)
+
+    longest = 0
+    run = 0
+    previous: date | None = None
+    for day in sorted(active_days):
+        run = run + 1 if previous is not None and day - previous == timedelta(days=1) else 1
+        longest = max(longest, run)
+        previous = day
+
+    return current, longest
+
+
+async def get_student_activity(
+    db: AsyncSession, student: User, *, days: int, tz_name: str
+) -> StudentActivityOut:
+    """Serie diaria + rachas + conexiones: el "perfil" del estudiante.
+
+    Todo se deriva de datos que ya existen (`practice_submissions.created_at` y
+    `audit_logs`), sin tablas nuevas.
+    """
+    now = datetime.now(UTC)
+    rows = await repository.daily_practice_activity(
+        db, student.id, since=now - timedelta(days=days), tz_name=tz_name
+    )
+
+    try:
+        today = now.astimezone(ZoneInfo(tz_name)).date()
+    except ZoneInfoNotFoundError:
+        # Zona desconocida (cliente con un tz raro o datos de zona ausentes en
+        # la imagen): la serie ya viene agrupada por Postgres, así que degradar
+        # a UTC solo desplaza el "hoy" de las rachas, no rompe la respuesta.
+        today = now.date()
+
+    active_days = {day for day, submissions, _ in rows if submissions > 0}
+    current_streak, longest_streak = _streaks(active_days, today)
+
+    return StudentActivityOut(
+        days=[
+            DailyActivityOut(date=day, submissions=submissions, correct=correct)
+            for day, submissions, correct in rows
+        ],
+        current_streak=current_streak,
+        longest_streak=longest_streak,
+        active_days=len(active_days),
+        total_submissions=sum(submissions for _, submissions, _ in rows),
+        logins=await repository.count_logins(db, student.id),
+    )
 
 
 async def get_student_progress(db: AsyncSession, student: User) -> StudentProgressOut:

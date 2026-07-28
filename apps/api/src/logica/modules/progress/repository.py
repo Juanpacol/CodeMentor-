@@ -6,6 +6,7 @@ from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
+from logica.core.audit import AuditLog
 from logica.modules.content.models import Language, Topic
 from logica.modules.evaluations.models import AttemptStatus, EvaluationAttempt, PracticeSubmission
 from logica.modules.exercises.models import Exercise, TopicExercise
@@ -68,6 +69,48 @@ async def count_correct_practice(db: AsyncSession, student_id: uuid.UUID) -> tup
     total = (await db.execute(total_stmt)).scalar_one()
     correct = (await db.execute(correct_stmt)).scalar_one()
     return total, correct
+
+
+async def daily_practice_activity(
+    db: AsyncSession, student_id: uuid.UUID, *, since: datetime, tz_name: str
+) -> list[tuple[date, int, int]]:
+    """(día, envíos, aciertos) por día, para el mapa de actividad y la racha.
+
+    Se agrupa en la zona horaria del estudiante y no en UTC: en Colombia
+    (UTC-5) todo lo practicado después de las 7 p.m. caería en el día siguiente,
+    y una racha se rompería sola a mitad de la tarde.
+
+    No hay tabla de actividad: los envíos de práctica ya tienen `created_at`,
+    así que la serie se deriva. Una tabla nueva sería una segunda fuente de
+    verdad que puede desincronizarse.
+    """
+    local_day = func.date(func.timezone(tz_name, PracticeSubmission.created_at))
+    stmt = (
+        select(
+            local_day.label("day"),
+            func.count(PracticeSubmission.id),
+            func.coalesce(func.sum(_CORRECT_AS_INT), 0),
+        )
+        .where(
+            PracticeSubmission.student_id == student_id,
+            PracticeSubmission.created_at >= since,
+        )
+        .group_by(local_day)
+        .order_by(local_day)
+    )
+    result = await db.execute(stmt)
+    return [(row[0], int(row[1]), int(row[2])) for row in result.all()]
+
+
+async def count_logins(db: AsyncSession, user_id: uuid.UUID) -> int:
+    """Cuántas veces se ha conectado. Se cuenta desde `audit_logs` en vez de una
+    tabla propia: los refresh tokens son JWT sin fila en la BD, así que no había
+    dónde contar, y el rastro de auditoría ya existía para esto."""
+    stmt = select(func.count(AuditLog.id)).where(
+        AuditLog.actor_user_id == user_id, AuditLog.action == "login"
+    )
+    result = await db.execute(stmt)
+    return int(result.scalar_one())
 
 
 async def sum_submitted_evaluation_scores(db: AsyncSession, student_id: uuid.UUID) -> float:

@@ -10,8 +10,13 @@ export const qk = {
   languages: ['languages'] as const,
   topics: (languageId?: string) => ['topics', languageId ?? 'all'] as const,
   practice: (groupId: string) => ['practice', groupId] as const,
+  assignments: {
+    me: ['assignments', 'me'] as const,
+    forGroup: (groupId: string) => ['assignments', 'group', groupId] as const,
+  },
   progress: {
     me: ['progress', 'me'] as const,
+    myActivity: ['progress', 'me', 'activity'] as const,
     lagging: (groupId: string) => ['progress', 'lagging', groupId] as const,
   },
   exercises: (filters: { languageId?: string; topicId?: string } = {}) =>

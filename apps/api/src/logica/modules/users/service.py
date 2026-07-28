@@ -100,6 +100,19 @@ async def authenticate(db: AsyncSession, email: str, password: str) -> TokenPair
     if not user.is_active:
         raise PermissionDeniedError("Cuenta inactiva")
 
+    # "Cuántas veces me he conectado" del perfil del estudiante sale de acá. Se
+    # reusa el rastro de auditoría en vez de crear una tabla de sesiones: los
+    # refresh tokens son JWT sin fila en la BD (la revocación vive en Redis), así
+    # que no había ningún lado donde contar conexiones.
+    await record_audit(
+        db,
+        institution_id=user.institution_id,
+        actor_user_id=user.id,
+        action="login",
+        target_type="user",
+        target_id=str(user.id),
+    )
+
     return _issue_token_pair(user)
 
 

@@ -14,8 +14,10 @@ from datetime import UTC, datetime
 
 import structlog
 from arq import ArqRedis
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from logica.core.cancellation import request_cancel
 from logica.core.errors import (
     ConflictError,
     NotFoundError,
@@ -259,6 +261,30 @@ async def publish_guide(db: AsyncSession, user: User, guide_id: uuid.UUID) -> Gu
     await db.flush()
     await db.refresh(guide)
     logger.info("guide_published", guide_id=str(guide_id))
+    return guide
+
+
+async def cancel_guide(db: AsyncSession, redis: Redis, user: User, guide_id: uuid.UUID) -> Guide:
+    """Detiene una guía que se está generando.
+
+    Antes no existía: una guía cuya generación se atascaba se quedaba en
+    `generating` para siempre, sin forma de archivarla (`archive_guide` lo
+    prohíbe justamente en ese estado) ni de reintentarla.
+
+    El estado se escribe acá y no se espera al worker: si el job murió sin
+    avisar, esperar su confirmación dejaría la fila colgada igual que antes.
+    Cuando el worker sí está vivo, la señal de Redis lo hace salir entre
+    secciones y él conserva lo ya redactado.
+    """
+    guide = await get_guide_for_teacher(db, user, guide_id)
+    if guide.status != GuideStatus.generating:
+        raise ConflictError("Solo se puede cancelar una guía que se está generando")
+
+    await request_cancel(redis, "guide", guide_id)
+    guide.status = GuideStatus.cancelled
+    await db.flush()
+    await db.refresh(guide)
+    logger.info("guide_cancelled", guide_id=str(guide_id))
     return guide
 
 

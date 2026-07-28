@@ -11,8 +11,10 @@ from datetime import UTC, datetime
 
 import structlog
 from arq import ArqRedis
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from logica.core.cancellation import request_cancel
 from logica.core.errors import ConflictError, NotFoundError, PermissionDeniedError
 from logica.modules.content.repository import get_language
 from logica.modules.groups.service import get_group_with_access
@@ -36,7 +38,12 @@ logger = structlog.get_logger()
 # eso el tope es parte del contrato de la API y no un detalle del worker.
 MAX_ITEMS_PER_RUN = 15
 
-_TERMINAL_STATUSES = (RubricRunStatus.done, RubricRunStatus.partial, RubricRunStatus.failed)
+_TERMINAL_STATUSES = (
+    RubricRunStatus.done,
+    RubricRunStatus.partial,
+    RubricRunStatus.failed,
+    RubricRunStatus.cancelled,
+)
 
 
 def _ensure_teacher(user: User) -> None:
@@ -161,10 +168,14 @@ async def list_items(db: AsyncSession, user: User, run_id: uuid.UUID) -> list[Ru
     return await repository.list_items(db, run.id)
 
 
-async def cancel_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> RubricRun:
-    """Marca la corrida como fallida para que el worker se detenga en el próximo
-    ítem. No mata el job en curso: arq no expone cancelación, y el orquestador
-    consulta este estado entre temas — el tema que esté a medio generar termina.
+async def cancel_run(db: AsyncSession, redis: Redis, user: User, run_id: uuid.UUID) -> RubricRun:
+    """Marca la corrida como cancelada y avisa al worker por Redis.
+
+    Antes esto solo escribía el estado en la BD, y el orquestador lo consultaba
+    únicamente **entre temas**: como un tema son ~7 llamadas al modelo, cancelar
+    tardaba minutos en surtir efecto y parecía no funcionar. La señal de
+    `core.cancellation` se consulta también entre las etapas de un tema y entre
+    las secciones de una guía, así que ahora se detiene en segundos.
 
     Lo ya generado (temas, guías, ejercicios) se queda: son borradores que el
     docente puede archivar uno por uno, y borrarlos automáticamente destruiría
@@ -174,7 +185,12 @@ async def cancel_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> RubricR
     if run.status in _TERMINAL_STATUSES:
         raise ConflictError("La corrida ya terminó")
 
-    run.status = RubricRunStatus.failed
+    # Primero la señal: si el commit de abajo fallara, un worker que ya la leyó
+    # se detiene igual — el error opuesto (worker corriendo con la fila en
+    # `cancelled`) le mentiría al docente.
+    await request_cancel(redis, "rubric_run", run_id)
+
+    run.status = RubricRunStatus.cancelled
     run.error_message = "Cancelada por el docente"
     run.completed_at = datetime.now(UTC)
     await db.flush()

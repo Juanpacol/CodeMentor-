@@ -22,6 +22,7 @@ from logica.core.errors import LogicaError
 from logica.core.rate_limit import limiter
 from logica.core.security_headers import SecurityHeadersMiddleware
 from logica.db import get_engine
+from logica.modules.assignments.router import router as assignments_router
 from logica.modules.content.router import router as content_router
 from logica.modules.evaluations.router import router as evaluations_router
 from logica.modules.exercises.router import router as exercises_router
@@ -207,6 +208,7 @@ def create_app() -> FastAPI:
     app.include_router(progress_router)
     app.include_router(reports_router)
     app.include_router(rubrics_router)
+    app.include_router(assignments_router)
     app.include_router(observability_router)
 
     return app

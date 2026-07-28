@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 
 import { BarList, type BarListItem } from '../../components/ui/BarList'
 import { Card } from '../../components/ui/Card'
+import { ContributionHeatmap } from '../../components/ui/ContributionHeatmap'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { Stat } from '../../components/ui/Stat'
@@ -77,6 +78,19 @@ export function ProgressPage() {
     queryFn: () => unwrap(apiClient.GET('/progress/me')),
   })
 
+  // La zona la manda el navegador: agrupar en UTC partiría cada día en dos para
+  // cualquiera al oeste de Greenwich, y las rachas se romperían a media tarde.
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const { data: activity } = useQuery({
+    queryKey: qk.progress.myActivity,
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/progress/me/activity', {
+          params: { query: { days: 365, tz: timeZone } },
+        }),
+      ),
+  })
+
   if (isLoading || !progress) {
     return (
       <div className="flex flex-col gap-4">
@@ -92,7 +106,7 @@ export function ProgressPage() {
     <div>
       <h1 className="mb-6 text-2xl font-semibold text-ink">Mi progreso</h1>
 
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <Card>
           <Stat
             label="Puntos acumulados"
@@ -117,7 +131,27 @@ export function ProgressPage() {
             value={weightedAccuracy !== null ? `${Math.round(weightedAccuracy * 100)}%` : '—'}
           />
         </Card>
+        <Card>
+          <Stat
+            label="Racha actual"
+            value={activity ? `🔥 ${activity.current_streak}` : '—'}
+            hint={activity ? `Máxima: ${activity.longest_streak} días` : undefined}
+          />
+        </Card>
+        <Card>
+          <Stat
+            label="Conexiones"
+            value={activity?.logins ?? '—'}
+            hint={activity ? `${activity.active_days} días activos` : undefined}
+          />
+        </Card>
       </div>
+
+      {activity && (
+        <div className="mb-8">
+          <ContributionHeatmap days={activity.days} today={new Date()} />
+        </div>
+      )}
 
       <h2 className="mb-3 text-lg font-semibold text-ink">Insignias</h2>
       {progress.badges.length === 0 ? (

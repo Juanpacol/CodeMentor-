@@ -41,6 +41,25 @@ class StudentProgressOut(BaseModel):
     mastery_by_language: list[LanguageMasteryOut]
 
 
+class DailyActivityOut(BaseModel):
+    """Un día con actividad. Los días sin nada NO vienen en la lista: rellenar
+    365 ceros triplicaría la respuesta y el frontend igual tiene que construir
+    la rejilla completa del calendario."""
+
+    date: date
+    submissions: int
+    correct: int
+
+
+class StudentActivityOut(BaseModel):
+    days: list[DailyActivityOut]
+    current_streak: int
+    longest_streak: int
+    active_days: int
+    total_submissions: int
+    logins: int
+
+
 class LaggingStudentOut(BaseModel):
     student_id: uuid.UUID
     full_name: str
