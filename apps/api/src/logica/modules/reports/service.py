@@ -19,6 +19,7 @@ from logica.modules.groups.models import Group
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.progress.models import AcademicPeriod
 from logica.modules.progress.repository import get_academic_period
+from logica.modules.progress.service import lagging_reason_for_student
 from logica.modules.reports import repository
 from logica.modules.reports.models import ReportFormat, ReportJob, ReportStatus
 from logica.modules.reports.repository import GradebookStudentRow, StudentReportRow
@@ -52,7 +53,16 @@ async def request_group_report(
     return job
 
 
-def _build_xlsx(group: Group, period: AcademicPeriod | None, rows: list[StudentReportRow]) -> bytes:
+def _status_label(reason: str | None) -> str:
+    return reason or "Al día"
+
+
+def _build_xlsx(
+    group: Group,
+    period: AcademicPeriod | None,
+    rows: list[StudentReportRow],
+    lagging_reasons: dict[uuid.UUID, str | None],
+) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
@@ -73,6 +83,7 @@ def _build_xlsx(group: Group, period: AcademicPeriod | None, rows: list[StudentR
         "Evaluaciones presentadas",
         "Promedio evaluaciones",
         "Insignias",
+        "Estado",
     ]
     ws.append(headers)
     for cell in ws[ws.max_row]:
@@ -89,6 +100,7 @@ def _build_xlsx(group: Group, period: AcademicPeriod | None, rows: list[StudentR
                 row.evaluations_submitted,
                 row.avg_evaluation_score,
                 row.badges_count,
+                _status_label(lagging_reasons.get(row.student_id)),
             ]
         )
 
@@ -97,7 +109,12 @@ def _build_xlsx(group: Group, period: AcademicPeriod | None, rows: list[StudentR
     return buffer.getvalue()
 
 
-def _build_pdf(group: Group, period: AcademicPeriod | None, rows: list[StudentReportRow]) -> bytes:
+def _build_pdf(
+    group: Group,
+    period: AcademicPeriod | None,
+    rows: list[StudentReportRow],
+    lagging_reasons: dict[uuid.UUID, str | None],
+) -> bytes:
     # Imported lazily: WeasyPrint needs system libraries (Pango/GdkPixbuf,
     # see apps/api/Dockerfile) that aren't necessarily present on every dev
     # machine running `pytest` outside Docker — deferring the import keeps
@@ -114,7 +131,8 @@ def _build_pdf(group: Group, period: AcademicPeriod | None, rows: list[StudentRe
         f"<td>{f'{r.practice_correct / r.practice_total:.0%}' if r.practice_total else '—'}</td>"
         f"<td>{r.evaluations_submitted}</td>"
         f"<td>{f'{r.avg_evaluation_score:.2f}' if r.avg_evaluation_score is not None else '—'}</td>"
-        f"<td>{r.badges_count}</td></tr>"
+        f"<td>{r.badges_count}</td>"
+        f"<td>{_status_label(lagging_reasons.get(r.student_id))}</td></tr>"
         for r in rows
     )
     html = f"""
@@ -129,7 +147,7 @@ def _build_pdf(group: Group, period: AcademicPeriod | None, rows: list[StudentRe
         {period_html}
         <table>
             <tr><th>Estudiante</th><th>Correo</th><th>Envíos</th><th>Precisión</th>
-                <th>Evaluaciones</th><th>Promedio</th><th>Insignias</th></tr>
+                <th>Evaluaciones</th><th>Promedio</th><th>Insignias</th><th>Estado</th></tr>
             {rows_html}
         </table>
     </body></html>
@@ -177,11 +195,20 @@ async def generate_group_report(db: AsyncSession, report_job_id: uuid.UUID) -> N
         rows = await repository.student_report_rows(
             db, job.group_id, period_start=period_start, period_end=period_end
         )
+        # RF-15 reusado en el export: la misma señal de "quién está atascado"
+        # que ya ve el docente en pantalla (AnalyticsTab), ahora también en el
+        # archivo — sin inventar una métrica nueva.
+        lagging_reasons = {
+            row.student_id: (
+                await lagging_reason_for_student(db, job.group_id, row.student_id)
+            )[0]
+            for row in rows
+        }
 
         content = (
-            _build_xlsx(group, period, rows)
+            _build_xlsx(group, period, rows, lagging_reasons)
             if job.format == ReportFormat.xlsx
-            else _build_pdf(group, period, rows)
+            else _build_pdf(group, period, rows, lagging_reasons)
         )
 
         # noqa comments below: this runs in the arq worker, not on a request

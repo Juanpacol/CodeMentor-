@@ -5,10 +5,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.core.errors import ConflictError, NotFoundError, PermissionDeniedError
 from logica.modules.content.repository import get_topic
-from logica.modules.exercises.models import Exercise, ExerciseStatus, ExerciseType, TopicExercise
+from logica.modules.exercises.models import (
+    Exercise,
+    ExerciseStatus,
+    ExerciseType,
+    ExerciseVersion,
+    TopicExercise,
+)
 from logica.modules.exercises.repository import (
+    create_exercise_version,
     get_exercise,
+    get_exercise_version,
     get_topic_exercise_link,
+    list_exercise_versions,
 )
 from logica.modules.users.models import Role, User
 
@@ -63,13 +72,16 @@ async def update_exercise(
     _ensure_teacher(user)
     exercise = await _get_exercise_in_institution(db, user, exercise_id)
 
-    changed = False
+    changed = bool(title) or content is not None
+    # Snapshot del contenido *anterior* solo si ya estaba publicado — un
+    # draft en progreso no genera ruido de historial (ítem 5).
+    if changed and exercise.status == ExerciseStatus.published:
+        await create_exercise_version(db, exercise, created_by_id=user.id)
+
     if title:
         exercise.title = title
-        changed = True
     if content is not None:
         exercise.content = content
-        changed = True
     if status:
         exercise.status = status
 
@@ -79,6 +91,31 @@ async def update_exercise(
     await db.flush()
     await db.refresh(exercise)
     return exercise
+
+
+async def list_versions(
+    db: AsyncSession, user: User, exercise_id: uuid.UUID
+) -> list[ExerciseVersion]:
+    _ensure_teacher(user)
+    await _get_exercise_in_institution(db, user, exercise_id)
+    return await list_exercise_versions(db, exercise_id)
+
+
+async def restore_version(
+    db: AsyncSession, user: User, exercise_id: uuid.UUID, version_id: uuid.UUID
+) -> Exercise:
+    """Restaurar también pasa por `update_exercise` (via el mismo camino de
+    snapshot-antes-de-mutar), así queda en el historial y es a su vez
+    reversible — no es un caso especial."""
+    _ensure_teacher(user)
+    exercise = await _get_exercise_in_institution(db, user, exercise_id)
+    version = await get_exercise_version(db, version_id)
+    if version is None or version.exercise_id != exercise.id:
+        raise NotFoundError("Versión no encontrada")
+
+    return await update_exercise(
+        db, user, exercise_id, title=version.title, content=version.content, status=None
+    )
 
 
 async def attach_exercise_to_topic(

@@ -28,7 +28,11 @@ from logica.modules.evaluations.models import (  # noqa: F401
     EvaluationExercise,
     PracticeSubmission,
 )
-from logica.modules.exercises.models import Exercise, TopicExercise  # noqa: F401
+from logica.modules.exercises.models import (  # noqa: F401
+    Exercise,
+    ExerciseVersion,
+    TopicExercise,
+)
 from logica.modules.groups.models import Group, GroupMembership  # noqa: F401
 from logica.modules.guides.models import (  # noqa: F401
     Guide,

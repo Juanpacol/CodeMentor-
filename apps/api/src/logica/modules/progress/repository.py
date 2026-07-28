@@ -216,16 +216,25 @@ async def group_member_ids(db: AsyncSession, group_id: uuid.UUID) -> list[uuid.U
 
 
 async def practice_accuracy_and_last_activity_in_group(
-    db: AsyncSession, group_id: uuid.UUID, student_id: uuid.UUID
+    db: AsyncSession,
+    group_id: uuid.UUID,
+    student_id: uuid.UUID,
+    *,
+    topic_id: uuid.UUID | None = None,
 ) -> tuple[int, int, datetime | None]:
     """(total, correct, last_submission_at) restricted to one group — used
     for RF-15 lag detection, which is inherently per-group (a student can be
-    fine in one group's pace and behind in another)."""
+    fine in one group's pace and behind in another). `topic_id` narrows it
+    further to just that topic's exercises, same join shape as `topic_accuracy`."""
     stmt = select(
         func.count(PracticeSubmission.id),
         func.sum(_CORRECT_AS_INT),
         func.max(PracticeSubmission.created_at),
     ).where(PracticeSubmission.group_id == group_id, PracticeSubmission.student_id == student_id)
+    if topic_id is not None:
+        stmt = stmt.join(
+            TopicExercise, TopicExercise.exercise_id == PracticeSubmission.exercise_id
+        ).where(TopicExercise.topic_id == topic_id)
     result = await db.execute(stmt)
     total, correct, last_at = result.one()
     return total, int(correct or 0), last_at

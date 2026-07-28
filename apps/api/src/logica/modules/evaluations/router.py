@@ -11,6 +11,7 @@ from logica.core.redis_dep import get_redis
 from logica.core.security import get_current_user
 from logica.db import get_db
 from logica.modules.evaluations import service
+from logica.modules.evaluations.repository import get_attempt_by_id
 from logica.modules.evaluations.schemas import (
     AnswerSummaryOut,
     AttemptResultOut,
@@ -153,6 +154,7 @@ async def _build_result(
                 correct=a.correct,
                 needs_manual_review=a.needs_manual_review,
                 manual_score=a.manual_score,
+                ai_generated_feedback=a.ai_generated_feedback,
             )
             for a in answers
         ],
@@ -188,6 +190,7 @@ async def list_evaluation_answers(
             needs_manual_review=answer.needs_manual_review,
             manual_score=answer.manual_score,
             ai_suggested_score=answer.ai_suggested_score,
+            ai_generated_feedback=answer.ai_generated_feedback,
         )
         for answer, student_id in pairs
     ]
@@ -224,6 +227,33 @@ async def submit_manual_review(
     await service.submit_manual_review(db, user, evaluation_id, answer_id, payload.score)
     await db.commit()
     return {"detail": "Calificación registrada"}
+
+
+@router.post(
+    "/evaluations/{evaluation_id}/answers/{answer_id}/feedback", response_model=AnswerSummaryOut
+)
+async def generate_answer_feedback(
+    evaluation_id: uuid.UUID,
+    answer_id: uuid.UUID,
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> AnswerSummaryOut:
+    answer = await service.generate_answer_feedback(db, redis, user, evaluation_id, answer_id)
+    await db.commit()
+    attempt = await get_attempt_by_id(db, answer.attempt_id)
+    assert attempt is not None
+    return AnswerSummaryOut(
+        answer_id=answer.id,
+        evaluation_exercise_id=answer.evaluation_exercise_id,
+        student_id=attempt.student_id,
+        score=answer.score,
+        correct=answer.correct,
+        needs_manual_review=answer.needs_manual_review,
+        manual_score=answer.manual_score,
+        ai_suggested_score=answer.ai_suggested_score,
+        ai_generated_feedback=answer.ai_generated_feedback,
+    )
 
 
 @router.get("/practice", response_model=list[PracticeExerciseOut])

@@ -76,6 +76,25 @@ class Exercise(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
     )
 
 
+class ExerciseVersion(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
+    """Ítem 5 (dashboard docente): snapshot del `title`/`content` de un
+    ejercicio *antes* de una edición, guardado solo cuando el ejercicio
+    editado ya estaba `published` (un draft en progreso no genera ruido de
+    historial). Permite ver qué cambió y restaurar una versión anterior."""
+
+    __tablename__ = "exercise_versions"
+
+    exercise_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exercises.id"), nullable=False, index=True
+    )
+    version: Mapped[int] = mapped_column(nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+
+
 class TopicExercise(UUIDPkMixin, TimestampMixin, Base):
     """Many-to-many link so an exercise can be reused across several topics."""
 

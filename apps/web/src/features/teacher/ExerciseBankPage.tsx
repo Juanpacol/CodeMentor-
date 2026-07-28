@@ -166,6 +166,77 @@ function ExerciseDialog({ mode, onClose }: { mode: Mode | null; onClose: () => v
   )
 }
 
+/** Ítem 5 (dashboard docente): historial de versiones + restaurar — solo se
+ * genera una fila cuando se edita un ejercicio ya publicado. */
+function ExerciseHistoryDialog({
+  exerciseId,
+  onClose,
+}: {
+  exerciseId: string | null
+  onClose: () => void
+}) {
+  const queryClient = useQueryClient()
+
+  const { data: versions, isLoading } = useQuery({
+    queryKey: qk.exerciseVersions(exerciseId ?? ''),
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/exercises/{exercise_id}/versions', {
+          params: { path: { exercise_id: exerciseId! } },
+        }),
+      ),
+    enabled: Boolean(exerciseId),
+  })
+
+  const restore = useMutation({
+    mutationFn: (versionId: string) =>
+      unwrap(
+        apiClient.POST('/exercises/{exercise_id}/versions/{version_id}/restore', {
+          params: { path: { exercise_id: exerciseId!, version_id: versionId } },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.exercises() })
+      void queryClient.invalidateQueries({ queryKey: qk.exerciseVersions(exerciseId ?? '') })
+      pushToast('Versión restaurada', 'success')
+      onClose()
+    },
+  })
+
+  return (
+    <Dialog open={exerciseId !== null} onClose={onClose} title="Historial de versiones">
+      {isLoading && <p className="text-sm text-ink-secondary">Cargando...</p>}
+      {!isLoading && versions?.length === 0 && (
+        <p className="text-sm text-ink-secondary">
+          Sin versiones anteriores — este ejercicio no se ha editado desde que se publicó.
+        </p>
+      )}
+      <div className="flex flex-col gap-2">
+        {versions?.map((version) => (
+          <Card key={version.id} className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-ink">
+                v{version.version} — {version.title}
+              </p>
+              <p className="text-xs text-ink-secondary">
+                {new Date(version.created_at).toLocaleString('es-CO')}
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={restore.isPending}
+              onClick={() => restore.mutate(version.id)}
+            >
+              Restaurar
+            </Button>
+          </Card>
+        ))}
+      </div>
+    </Dialog>
+  )
+}
+
 function GenerateWithAiDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient()
   const [groupId, setGroupId] = useState('')
@@ -253,6 +324,7 @@ export function ExerciseBankPage() {
   // el formulario con el ejercicio de partida correcto.
   const [dialogKey, setDialogKey] = useState(0)
   const [aiOpen, setAiOpen] = useState(false)
+  const [historyExerciseId, setHistoryExerciseId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -367,6 +439,13 @@ export function ExerciseBankPage() {
                 >
                   Duplicar
                 </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setHistoryExerciseId(exercise.id)}
+                >
+                  Historial
+                </Button>
               </div>
             </Card>
           ))}
@@ -375,6 +454,10 @@ export function ExerciseBankPage() {
 
       <ExerciseDialog key={dialogKey} mode={mode} onClose={() => setMode(null)} />
       <GenerateWithAiDialog open={aiOpen} onClose={() => setAiOpen(false)} />
+      <ExerciseHistoryDialog
+        exerciseId={historyExerciseId}
+        onClose={() => setHistoryExerciseId(null)}
+      />
     </div>
   )
 }

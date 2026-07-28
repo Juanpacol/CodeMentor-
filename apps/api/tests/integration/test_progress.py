@@ -218,6 +218,50 @@ async def test_lagging_students_flags_low_accuracy(
     assert lagging[0]["reason"].startswith("Precisión")
 
 
+async def test_lagging_students_filtered_by_topic(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
+
+    language_id = await create_language(client, teacher_access)
+    topic_weak = await create_topic(client, teacher_access, language_id, name="Débil")
+    topic_strong = await create_topic(client, teacher_access, language_id, name="Fuerte")
+    group = await create_group(client, teacher_access)
+    await join_group(client, student_access, group["invite_code"])
+    await enable_topic(client, teacher_access, group["id"], topic_weak)
+    await enable_topic(client, teacher_access, group["id"], topic_strong)
+
+    for i in range(4):
+        exercise = await create_exercise(
+            client, teacher_access, language_id, title=f"Débil {i}"
+        )
+        await attach_exercise(client, teacher_access, exercise["id"], topic_weak)
+        await _submit_practice(client, student_access, exercise["id"], group["id"], value=False)
+
+    for i in range(4):
+        exercise = await create_exercise(
+            client, teacher_access, language_id, title=f"Fuerte {i}"
+        )
+        await attach_exercise(client, teacher_access, exercise["id"], topic_strong)
+        await _submit_practice(client, student_access, exercise["id"], group["id"], value=True)
+
+    weak_resp = await client.get(
+        f"/groups/{group['id']}/progress/lagging",
+        params={"topic_id": topic_weak},
+        headers=auth_headers(teacher_access),
+    )
+    assert len(weak_resp.json()) == 1
+
+    strong_resp = await client.get(
+        f"/groups/{group['id']}/progress/lagging",
+        params={"topic_id": topic_strong},
+        headers=auth_headers(teacher_access),
+    )
+    assert len(strong_resp.json()) == 0
+
+
 async def test_lagging_students_forbidden_for_students(
     client: AsyncClient, institution: Institution
 ) -> None:

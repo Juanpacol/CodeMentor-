@@ -100,15 +100,20 @@ export function EvaluationResultPage() {
         {result.answers.map((answer, i) => (
           <div
             key={answer.evaluation_exercise_id}
-            className="flex items-center justify-between rounded-card border border-hairline bg-raised px-4 py-3"
+            className="rounded-card border border-hairline bg-raised px-4 py-3"
           >
-            <span className="text-sm text-ink">Pregunta {i + 1}</span>
-            {answer.needs_manual_review ? (
-              <Badge tint="sky">Pendiente de revisión</Badge>
-            ) : (
-              <Badge tint={answer.correct ? 'mint' : 'rose'}>
-                {Math.round((answer.manual_score ?? answer.score) * 100)}%
-              </Badge>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink">Pregunta {i + 1}</span>
+              {answer.needs_manual_review ? (
+                <Badge tint="sky">Pendiente de revisión</Badge>
+              ) : (
+                <Badge tint={answer.correct ? 'mint' : 'rose'}>
+                  {Math.round((answer.manual_score ?? answer.score) * 100)}%
+                </Badge>
+              )}
+            </div>
+            {answer.ai_generated_feedback && (
+              <p className="mt-2 text-sm text-ink-secondary">{answer.ai_generated_feedback}</p>
             )}
           </div>
         ))}

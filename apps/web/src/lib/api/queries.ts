@@ -21,6 +21,7 @@ export const qk = {
       filters.mastery ?? 'all',
     ] as const,
   practiceHistory: (exerciseId: string) => ['practice-history', exerciseId] as const,
+  exerciseVersions: (exerciseId: string) => ['exercise-versions', exerciseId] as const,
   assignments: {
     me: ['assignments', 'me'] as const,
     forGroup: (groupId: string) => ['assignments', 'group', groupId] as const,

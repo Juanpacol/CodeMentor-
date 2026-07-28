@@ -67,10 +67,11 @@ async def get_my_timeline(
 @router.get("/groups/{group_id}/progress/lagging", response_model=list[LaggingStudentOut])
 async def get_lagging_students(
     group_id: uuid.UUID,
+    topic_id: uuid.UUID | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[LaggingStudentOut]:
-    return await service.get_lagging_students(db, user, group_id)
+    return await service.get_lagging_students(db, user, group_id, topic_id=topic_id)
 
 
 @router.post("/academic-periods", response_model=AcademicPeriodOut, status_code=201)

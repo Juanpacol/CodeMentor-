@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -31,5 +32,16 @@ class ExerciseOut(BaseModel):
     status: ExerciseStatus
     version: int
     guide_id: uuid.UUID | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ExerciseVersionOut(BaseModel):
+    id: uuid.UUID
+    version: int
+    title: str
+    content: dict[str, Any]
+    created_by_id: uuid.UUID | None
+    created_at: datetime
 
     model_config = {"from_attributes": True}

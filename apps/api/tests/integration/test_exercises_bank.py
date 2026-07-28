@@ -107,3 +107,82 @@ async def test_update_exercise_increments_version(
     )
     assert draft.json()["status"] == "draft"
     assert draft.json()["version"] == 2
+
+
+async def test_editing_published_exercise_snapshots_previous_version(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    language_id = await create_language(client, teacher_access)
+
+    created = await client.post(
+        "/exercises",
+        json={
+            "language_id": language_id,
+            "title": "Original",
+            "type": "true_false",
+            "content": {"statement": "2+2=4", "answer": True},
+        },
+        headers=auth_headers(teacher_access),
+    )
+    exercise_id = created.json()["id"]
+
+    await client.patch(
+        f"/exercises/{exercise_id}",
+        json={"title": "Editado"},
+        headers=auth_headers(teacher_access),
+    )
+
+    versions = await client.get(
+        f"/exercises/{exercise_id}/versions", headers=auth_headers(teacher_access)
+    )
+    assert versions.status_code == 200
+    body = versions.json()
+    assert len(body) == 1
+    assert body[0]["title"] == "Original"
+    assert body[0]["version"] == 1
+
+
+async def test_restore_exercise_version_reverts_content_and_stays_reversible(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    language_id = await create_language(client, teacher_access)
+
+    created = await client.post(
+        "/exercises",
+        json={
+            "language_id": language_id,
+            "title": "Original",
+            "type": "true_false",
+            "content": {"statement": "2+2=4", "answer": True},
+        },
+        headers=auth_headers(teacher_access),
+    )
+    exercise_id = created.json()["id"]
+
+    await client.patch(
+        f"/exercises/{exercise_id}",
+        json={"title": "Editado"},
+        headers=auth_headers(teacher_access),
+    )
+
+    versions = await client.get(
+        f"/exercises/{exercise_id}/versions", headers=auth_headers(teacher_access)
+    )
+    version_id = versions.json()[0]["id"]
+
+    restored = await client.post(
+        f"/exercises/{exercise_id}/versions/{version_id}/restore",
+        headers=auth_headers(teacher_access),
+    )
+    assert restored.status_code == 200
+    assert restored.json()["title"] == "Original"
+    assert restored.json()["version"] == 3
+
+    versions_after = await client.get(
+        f"/exercises/{exercise_id}/versions", headers=auth_headers(teacher_access)
+    )
+    assert len(versions_after.json()) == 2

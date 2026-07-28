@@ -5,6 +5,9 @@ from typing import Any, Literal
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from logica.ai.agents.config_service import ensure_agent_enabled
+from logica.ai.agents.models import AgentName
+from logica.ai.skills.pedagogical_feedback import generate_pedagogical_feedback
 from logica.core.errors import (
     ConflictError,
     NotFoundError,
@@ -402,6 +405,45 @@ async def submit_manual_review(
         attempt.total_score = _weighted_total(eval_exercises, answers)
         await db.flush()
 
+    return answer
+
+
+async def generate_answer_feedback(
+    db: AsyncSession, redis: Redis, teacher: User, evaluation_id: uuid.UUID, answer_id: uuid.UUID
+) -> EvaluationAnswer:
+    """Ítem 4 (dashboard docente): expande el resultado técnico de una
+    respuesta en feedback pedagógico para el estudiante — sin comentario
+    previo del docente, reusando la skill ya existente
+    `ai.skills.pedagogical_feedback` (nunca conectada al camino síncrono de
+    calificación, disponible on-demand)."""
+    _ensure_teacher(teacher)
+    evaluation = await _get_evaluation_in_institution(db, teacher, evaluation_id)
+    await get_group_with_access(db, teacher, evaluation.group_id)
+    await ensure_agent_enabled(db, evaluation.group_id, AgentName.grading_assistant)
+
+    answer = await get_answer_by_id(db, answer_id)
+    if answer is None:
+        raise NotFoundError("Respuesta no encontrada")
+    eval_exercise = await get_evaluation_exercise(db, answer.evaluation_exercise_id)
+    if eval_exercise is None or eval_exercise.evaluation_id != evaluation_id:
+        raise NotFoundError("Respuesta no encontrada en esta evaluación")
+
+    exercise = await get_exercise(db, eval_exercise.exercise_id)
+    if exercise is None:
+        raise NotFoundError("Ejercicio no encontrado")
+
+    is_correct = answer.manual_score is not None or answer.correct
+    feedback = await generate_pedagogical_feedback(
+        db,
+        redis,
+        teacher,
+        statement=exercise.content.get("prompt", exercise.title),
+        correct=is_correct,
+        detail={"score": answer.manual_score if answer.manual_score is not None else answer.score},
+    )
+    answer.ai_generated_feedback = feedback
+    await db.flush()
+    await db.refresh(answer)
     return answer
 
 

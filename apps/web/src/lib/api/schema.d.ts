@@ -609,6 +609,40 @@ export interface paths {
         patch: operations["update_exercise_exercises__exercise_id__patch"];
         trace?: never;
     };
+    "/exercises/{exercise_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Exercise Versions */
+        get: operations["list_exercise_versions_exercises__exercise_id__versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exercises/{exercise_id}/versions/{version_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Exercise Version */
+        post: operations["restore_exercise_version_exercises__exercise_id__versions__version_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exercises/{exercise_id}/topics/{topic_id}": {
         parameters: {
             query?: never;
@@ -774,6 +808,23 @@ export interface paths {
         put?: never;
         /** Submit Manual Review */
         post: operations["submit_manual_review_evaluations__evaluation_id__manual_review__answer_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/evaluations/{evaluation_id}/answers/{answer_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Answer Feedback */
+        post: operations["generate_answer_feedback_evaluations__evaluation_id__answers__answer_id__feedback_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1664,6 +1715,8 @@ export interface components {
             manual_score: number | null;
             /** Ai Suggested Score */
             ai_suggested_score: number | null;
+            /** Ai Generated Feedback */
+            ai_generated_feedback: string | null;
         };
         /** AssignmentCreateRequest */
         AssignmentCreateRequest: {
@@ -2074,6 +2127,29 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             status?: components["schemas"]["ExerciseStatus"] | null;
+        };
+        /** ExerciseVersionOut */
+        ExerciseVersionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Version */
+            version: number;
+            /** Title */
+            title: string;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            };
+            /** Created By Id */
+            created_by_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** GoogleLoginRequest */
         GoogleLoginRequest: {
@@ -2746,6 +2822,8 @@ export interface components {
             needs_manual_review: boolean;
             /** Manual Score */
             manual_score: number | null;
+            /** Ai Generated Feedback */
+            ai_generated_feedback: string | null;
         };
         /** RagDocumentOut */
         RagDocumentOut: {
@@ -4581,6 +4659,69 @@ export interface operations {
             };
         };
     };
+    list_exercise_versions_exercises__exercise_id__versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exercise_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExerciseVersionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_exercise_version_exercises__exercise_id__versions__version_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exercise_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExerciseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     attach_to_topic_exercises__exercise_id__topics__topic_id__post: {
         parameters: {
             query?: never;
@@ -4927,6 +5068,38 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_answer_feedback_evaluations__evaluation_id__answers__answer_id__feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                evaluation_id: string;
+                answer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerSummaryOut"];
                 };
             };
             /** @description Validation Error */
@@ -5699,7 +5872,9 @@ export interface operations {
     };
     get_lagging_students_groups__group_id__progress_lagging_get: {
         parameters: {
-            query?: never;
+            query?: {
+                topic_id?: string | null;
+            };
             header?: never;
             path: {
                 group_id: string;

@@ -61,6 +61,7 @@ class QuestionResultOut(BaseModel):
     correct: bool
     needs_manual_review: bool
     manual_score: float | None
+    ai_generated_feedback: str | None
 
 
 class AttemptResultOut(BaseModel):
@@ -93,6 +94,7 @@ class AnswerSummaryOut(BaseModel):
     needs_manual_review: bool
     manual_score: float | None
     ai_suggested_score: float | None
+    ai_generated_feedback: str | None
 
 
 class RankingEntryOut(BaseModel):

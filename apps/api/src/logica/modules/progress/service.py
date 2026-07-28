@@ -398,40 +398,57 @@ async def get_student_timeline(
     return events[:limit]
 
 
+async def lagging_reason_for_student(
+    db: AsyncSession,
+    group_id: uuid.UUID,
+    student_id: uuid.UUID,
+    *,
+    topic_id: uuid.UUID | None = None,
+) -> tuple[str | None, float | None, int | None]:
+    """(reason, accuracy, days_since_last_activity) — sin chequeo de permisos,
+    pensado para reusarse desde un job en background (reportes) además del
+    endpoint de docente. `reason` es `None` si el estudiante no está rezagado."""
+    total, correct, last_at = await repository.practice_accuracy_and_last_activity_in_group(
+        db, group_id, student_id, topic_id=topic_id
+    )
+    accuracy = _accuracy(total, correct)
+    now = datetime.now(UTC)
+    days_since = None
+    if last_at is not None:
+        last_at_aware = last_at if last_at.tzinfo else last_at.replace(tzinfo=UTC)
+        days_since = (now - last_at_aware).days
+
+    reason = None
+    if last_at is None or (days_since is not None and days_since >= _LAG_INACTIVITY_DAYS):
+        reason = f"Sin práctica en los últimos {_LAG_INACTIVITY_DAYS} días o más"
+    elif (
+        total >= _LAG_MIN_SUBMISSIONS
+        and accuracy is not None
+        and (accuracy < _LAG_ACCURACY_THRESHOLD)
+    ):
+        reason = f"Precisión de práctica por debajo de {int(_LAG_ACCURACY_THRESHOLD * 100)}%"
+
+    return reason, accuracy, days_since
+
+
 async def get_lagging_students(
-    db: AsyncSession, teacher: User, group_id: uuid.UUID
+    db: AsyncSession, teacher: User, group_id: uuid.UUID, *, topic_id: uuid.UUID | None = None
 ) -> list[LaggingStudentOut]:
     """RF-15: a rule-based check (accuracy or inactivity), not a judgment
     call left to an LLM — a teacher deserves a deterministic, explainable
     reason for why a student is flagged. Pairs naturally with the Learning
     Analytics agent's `summarize_group` (Fase 6) for a narrative summary of
-    the same underlying data."""
+    the same underlying data. `topic_id` narrows the check to one topic's
+    practice — a student can be fine overall but stuck on a single topic."""
     _, is_teacher_view = await get_group_with_access(db, teacher, group_id)
     if not is_teacher_view:
         raise PermissionDeniedError("Solo un docente o administrador puede ver esta vista")
 
     lagging: list[LaggingStudentOut] = []
-    now = datetime.now(UTC)
     for student_id in await repository.group_member_ids(db, group_id):
-        total, correct, last_at = await repository.practice_accuracy_and_last_activity_in_group(
-            db, group_id, student_id
+        reason, accuracy, days_since = await lagging_reason_for_student(
+            db, group_id, student_id, topic_id=topic_id
         )
-        accuracy = _accuracy(total, correct)
-        days_since = None
-        if last_at is not None:
-            last_at_aware = last_at if last_at.tzinfo else last_at.replace(tzinfo=UTC)
-            days_since = (now - last_at_aware).days
-
-        reason = None
-        if last_at is None or (days_since is not None and days_since >= _LAG_INACTIVITY_DAYS):
-            reason = f"Sin práctica en los últimos {_LAG_INACTIVITY_DAYS} días o más"
-        elif (
-            total >= _LAG_MIN_SUBMISSIONS
-            and accuracy is not None
-            and (accuracy < _LAG_ACCURACY_THRESHOLD)
-        ):
-            reason = f"Precisión de práctica por debajo de {int(_LAG_ACCURACY_THRESHOLD * 100)}%"
-
         if reason is None:
             continue
 
@@ -476,5 +493,6 @@ __all__ = [
     "evaluate_and_award_badges",
     "get_lagging_students",
     "get_student_progress",
+    "lagging_reason_for_student",
     "list_academic_periods",
 ]
