@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logica.core.permissions import require_role
+from logica.core.permissions import require_permission
 from logica.core.security import get_current_user
 from logica.db import get_db
 from logica.modules.assignments import service
@@ -18,7 +18,7 @@ from logica.modules.users.models import User
 
 router = APIRouter(tags=["assignments"])
 
-RequireTeacher = require_role("teacher", "admin")
+RequireTeacher = require_permission("assignments:manage")
 
 
 @router.post("/groups/{group_id}/assignments", response_model=AssignmentOut, status_code=201)

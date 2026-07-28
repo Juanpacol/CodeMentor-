@@ -7,6 +7,7 @@ from logica.db import get_db
 from logica.modules.users import service
 from logica.modules.users.models import User
 from logica.modules.users.schemas import (
+    GoogleLoginRequest,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -37,6 +38,16 @@ async def login(
     request: Request, payload: LoginRequest, db: AsyncSession = Depends(get_db)
 ) -> TokenPair:
     tokens = await service.authenticate(db, payload.email, payload.password)
+    await db.commit()
+    return tokens
+
+
+@auth_router.post("/google", response_model=TokenPair)
+@limiter.limit("10/minute")
+async def login_google(
+    request: Request, payload: GoogleLoginRequest, db: AsyncSession = Depends(get_db)
+) -> TokenPair:
+    tokens = await service.authenticate_google(db, payload.id_token)
     await db.commit()
     return tokens
 

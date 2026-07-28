@@ -1,7 +1,7 @@
 import uuid
 
 from arq import ArqRedis
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +34,7 @@ from logica.ai.agents.schemas import (
 )
 from logica.core.arq_dep import get_arq_pool
 from logica.core.errors import NotFoundError
+from logica.core.rate_limit import user_limiter
 from logica.core.redis_dep import get_redis
 from logica.core.security import get_current_user
 from logica.db import get_db
@@ -72,7 +73,9 @@ async def toggle_agent(
 
 
 @router.post("/tutor/hint", response_model=TutorMessageOut, status_code=201)
+@user_limiter.limit("30/minute")
 async def ask_tutor_hint(
+    request: Request,
     payload: TutorHintRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -106,7 +109,9 @@ async def get_tutor_history(
 
 
 @router.post("/exercises/generate", response_model=ExerciseOut, status_code=201)
+@user_limiter.limit("20/minute")
 async def generate_exercise(
+    request: Request,
     payload: ExerciseGenerateRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -125,7 +130,9 @@ async def generate_exercise(
 
 
 @router.post("/guides/generate", response_model=GuideOut, status_code=202)
+@user_limiter.limit("20/minute")
 async def generate_guide(
+    request: Request,
     payload: GuideGenerateRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -171,7 +178,9 @@ async def generate_exercises_for_guide(
 
 
 @router.post("/grading/suggest", response_model=GradingSuggestionOut)
+@user_limiter.limit("30/minute")
 async def suggest_grading(
+    request: Request,
     payload: GradingSuggestionRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -206,7 +215,9 @@ async def get_group_summary(
 
 
 @router.post("/integrity/check", response_model=IntegrityAlertOut)
+@user_limiter.limit("30/minute")
 async def check_code_integrity(
+    request: Request,
     payload: IntegrityCheckRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
