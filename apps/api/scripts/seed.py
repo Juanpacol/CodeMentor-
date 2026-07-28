@@ -23,6 +23,7 @@ from logica.modules.evaluations.models import Evaluation, EvaluationMode
 from logica.modules.exercises import service as exercises_service
 from logica.modules.exercises.models import Exercise, ExerciseStatus, ExerciseType
 from logica.modules.groups.models import Group, GroupMembership
+from logica.modules.guides.models import Guide  # noqa: F401
 from logica.modules.users.models import Institution, Role, User
 
 logger = structlog.get_logger()
