@@ -20,7 +20,12 @@ module.exports = {
         'http://localhost:4173/registro',
         'http://localhost:4173/recuperar',
       ],
-      numberOfRuns: 1,
+      // 3 corridas + mediana (default de LHCI cuando numberOfRuns > 1): con 1
+      // sola corrida, la varianza normal de CPU compartida en el runner de
+      // GitHub Actions produjo falsos negativos (0.77 y 0.80 contra el
+      // mínimo 0.85) sin ningún cambio de código de por medio — ver PRs #16
+      // y #18, ambos re-corridos manualmente para confirmarlo.
+      numberOfRuns: 3,
     },
     assert: {
       assertions: {
