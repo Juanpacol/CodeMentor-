@@ -213,9 +213,7 @@ async def test_errors_summary_groups_by_exception_type_and_orders_by_count(
         )
         await db.commit()
 
-    resp = await client.get(
-        "/observability/errors/summary", headers=auth_headers(teacher_access)
-    )
+    resp = await client.get("/observability/errors/summary", headers=auth_headers(teacher_access))
     assert resp.status_code == 200
     body = resp.json()
     assert body[0]["exception_type"] == "ValueError"
@@ -231,9 +229,7 @@ async def test_errors_summary_forbidden_for_students(
     domain = institution.email_domains[0]
     student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
 
-    resp = await client.get(
-        "/observability/errors/summary", headers=auth_headers(student_access)
-    )
+    resp = await client.get("/observability/errors/summary", headers=auth_headers(student_access))
     assert resp.status_code == 403
 
 

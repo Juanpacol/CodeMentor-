@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.core.errors import PermissionDeniedError
+from logica.modules.assignments.service import list_my_assignments
 from logica.modules.exercises.models import Exercise
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.progress import repository
@@ -22,6 +23,8 @@ from logica.modules.progress.schemas import (
     LanguageMasteryOut,
     StudentActivityOut,
     StudentProgressOut,
+    TimelineEventOut,
+    TodaySummaryOut,
     TopicMasteryOut,
 )
 from logica.modules.users.models import Role, User
@@ -237,17 +240,55 @@ async def get_student_activity(
     )
 
 
-async def get_student_progress(db: AsyncSession, student: User) -> StudentProgressOut:
-    practice_total, practice_correct = await repository.count_correct_practice(db, student.id)
-    evaluation_points = await repository.sum_submitted_evaluation_scores(db, student.id)
-    # RF-29: gamification points, not a grading metric — 1 per correct
-    # practice submission, plus 10x the accumulated evaluation score (formal
-    # assessments count for more than free practice).
-    points = practice_correct + round(evaluation_points * 10)
+async def get_today_summary(db: AsyncSession, student: User, *, tz_name: str) -> TodaySummaryOut:
+    """ "Mi progreso hoy": reusa `get_student_activity` (misma racha, mismo
+    derivado de `practice_submissions`) en vez de una consulta nueva de un
+    solo día — la racha necesita el historial completo para calcularse, no
+    solo la ventana de hoy."""
+    activity = await get_student_activity(db, student, days=365, tz_name=tz_name)
 
-    badge_rows = await repository.list_student_badges(db, student.id)
+    now = datetime.now(UTC)
+    try:
+        today = now.astimezone(ZoneInfo(tz_name)).date()
+    except ZoneInfoNotFoundError:
+        today = now.date()
+
+    today_row = next((d for d in activity.days if d.date == today), None)
+    submissions = today_row.submissions if today_row else 0
+    correct = today_row.correct if today_row else 0
+
+    badge_rows = [
+        b
+        for b in await repository.list_student_badges(db, student.id)
+        if b.earned_at.astimezone(UTC).date() == today
+    ]
     badges_by_id = {b.id: b for b in await repository.list_badges(db, student.institution_id)}
-    badges = [
+    badges_earned_today = _build_badge_outs(badge_rows, badges_by_id)
+
+    assignments = await list_my_assignments(db, student)
+    due_today = sum(
+        1 for a in assignments if not a.done and a.due_at is not None and a.due_at.date() == today
+    )
+    due_tomorrow = sum(
+        1
+        for a in assignments
+        if not a.done and a.due_at is not None and a.due_at.date() == today + timedelta(days=1)
+    )
+
+    return TodaySummaryOut(
+        submissions=submissions,
+        correct=correct,
+        current_streak=activity.current_streak,
+        badges_earned_today=badges_earned_today,
+        due_today=due_today,
+        due_tomorrow=due_tomorrow,
+    )
+
+
+def _build_badge_outs(
+    badge_rows: list[StudentBadge], badges_by_id: dict[uuid.UUID, Badge]
+) -> list[BadgeOut]:
+    return [
         BadgeOut(
             id=row.badge_id,
             slug=badges_by_id[row.badge_id].slug,
@@ -261,6 +302,19 @@ async def get_student_progress(db: AsyncSession, student: User) -> StudentProgre
         for row in badge_rows
         if row.badge_id in badges_by_id
     ]
+
+
+async def get_student_progress(db: AsyncSession, student: User) -> StudentProgressOut:
+    practice_total, practice_correct = await repository.count_correct_practice(db, student.id)
+    evaluation_points = await repository.sum_submitted_evaluation_scores(db, student.id)
+    # RF-29: gamification points, not a grading metric — 1 per correct
+    # practice submission, plus 10x the accumulated evaluation score (formal
+    # assessments count for more than free practice).
+    points = practice_correct + round(evaluation_points * 10)
+
+    badge_rows = await repository.list_student_badges(db, student.id)
+    badges_by_id = {b.id: b for b in await repository.list_badges(db, student.institution_id)}
+    badges = _build_badge_outs(badge_rows, badges_by_id)
 
     topic_mastery = [
         TopicMasteryOut(
@@ -292,6 +346,56 @@ async def get_student_progress(db: AsyncSession, student: User) -> StudentProgre
         mastery_by_topic=topic_mastery,
         mastery_by_language=language_mastery,
     )
+
+
+async def get_student_timeline(
+    db: AsyncSession, student: User, *, limit: int
+) -> list[TimelineEventOut]:
+    """Feed cronológico (ítem 6): fusiona 3 fuentes ya existentes en Python en
+    vez de un `UNION` SQL — cada fuente ya trae como mucho `limit` filas, así
+    que ordenar la unión en memoria es más simple que un UNION tipado entre
+    tres tablas con columnas distintas."""
+    submissions, badges, attempts = (
+        await repository.recent_practice_submissions(db, student.id, limit),
+        await repository.recent_student_badges(db, student.id, limit),
+        await repository.recent_evaluation_attempts(db, student.id, limit),
+    )
+
+    events = [
+        TimelineEventOut(
+            kind="practice",
+            title=title,
+            detail="Correcto" if submission.correct else "Incorrecto",
+            occurred_at=submission.created_at,
+        )
+        for submission, title in submissions
+    ]
+    events += [
+        TimelineEventOut(
+            kind="badge",
+            title=name,
+            detail="Insignia ganada",
+            occurred_at=badge.earned_at,
+        )
+        for badge, name in badges
+    ]
+    events += [
+        TimelineEventOut(
+            kind="evaluation",
+            title=title,
+            detail=(
+                f"Puntaje: {attempt.total_score:.1f}"
+                if attempt.total_score is not None
+                else "Entregada"
+            ),
+            occurred_at=attempt.submitted_at,
+        )
+        for attempt, title in attempts
+        if attempt.submitted_at is not None
+    ]
+
+    events.sort(key=lambda e: e.occurred_at, reverse=True)
+    return events[:limit]
 
 
 async def get_lagging_students(

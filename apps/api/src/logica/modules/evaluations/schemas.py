@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -106,6 +106,19 @@ class PracticeExerciseOut(BaseModel):
     type: ExerciseType
     title: str
     content: dict[str, Any]
+    done: bool
+    mastery_level: Literal["new", "practicing", "mastered"]
+
+
+class PracticeAttemptOut(BaseModel):
+    id: uuid.UUID
+    answer: dict[str, Any]
+    score: float
+    correct: bool
+    needs_manual_review: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class PracticeSubmitRequest(BaseModel):

@@ -15,6 +15,7 @@ import { apiClient, ApiError, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
 import { staggerContainer, staggerItem } from '../../lib/motion'
 import { PendingAssignments } from './PendingAssignments'
+import { TodaySummary } from './TodaySummary'
 
 function JoinGroupDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient()
@@ -95,6 +96,7 @@ export function StudentDashboardPage() {
     <div>
       {/* Antes de los grupos: lo primero que un estudiante necesita saber al
         * entrar es qué le falta y para cuándo, no en qué clases está. */}
+      <TodaySummary />
       <PendingAssignments />
 
       <div className="mb-6 flex items-center justify-between">

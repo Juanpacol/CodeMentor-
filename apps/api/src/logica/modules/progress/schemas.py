@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -58,6 +59,26 @@ class StudentActivityOut(BaseModel):
     active_days: int
     total_submissions: int
     logins: int
+
+
+class TodaySummaryOut(BaseModel):
+    """Ítem 4 (dashboard estudiante): "mi progreso hoy" — un resumen del día,
+    no un reemplazo de `/progress/me/activity` (que sigue siendo la serie
+    completa para el heatmap)."""
+
+    submissions: int
+    correct: int
+    current_streak: int
+    badges_earned_today: list[BadgeOut]
+    due_today: int
+    due_tomorrow: int
+
+
+class TimelineEventOut(BaseModel):
+    kind: Literal["practice", "badge", "evaluation"]
+    title: str
+    detail: str
+    occurred_at: datetime
 
 
 class LaggingStudentOut(BaseModel):

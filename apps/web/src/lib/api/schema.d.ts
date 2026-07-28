@@ -797,6 +797,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/practice/{exercise_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Practice History */
+        get: operations["get_practice_history_practice__exercise_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/practice/{exercise_id}/submit": {
         parameters: {
             query?: never;
@@ -1142,6 +1159,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/progress/me/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Today Summary */
+        get: operations["get_my_today_summary_progress_me_today_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/progress/me/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Timeline */
+        get: operations["get_my_timeline_progress_me_timeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/groups/{group_id}/progress/lagging": {
         parameters: {
             query?: never;
@@ -1426,6 +1477,57 @@ export interface paths {
         get: operations["get_ai_usage_observability_ai_usage_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notifications */
+        get: operations["list_notifications_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Notification Read */
+        post: operations["mark_notification_read_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark All Notifications Read */
+        post: operations["mark_all_notifications_read_notifications_read_all_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2417,6 +2519,42 @@ export interface components {
             /** Score */
             score: number;
         };
+        /**
+         * NotificationKind
+         * @description Ítem 5 (notificaciones inteligentes): reglas deterministas, sin
+         *     juicio de un LLM — mismo precedente que `progress.service.get_lagging_students`.
+         * @enum {string}
+         */
+        NotificationKind: "assignment_due" | "badge_earned" | "streak_at_risk";
+        /** NotificationOut */
+        NotificationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["NotificationKind"];
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Related Id */
+            related_id: string | null;
+            /** Read At */
+            read_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** NotificationPageOut */
+        NotificationPageOut: {
+            /** Items */
+            items: components["schemas"]["NotificationOut"][];
+            /** Unread Count */
+            unread_count: number;
+        };
         /** PasswordResetConfirm */
         PasswordResetConfirm: {
             /** Token */
@@ -2481,6 +2619,29 @@ export interface components {
             /** Ai Suggested Justification */
             ai_suggested_justification: string;
         };
+        /** PracticeAttemptOut */
+        PracticeAttemptOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Answer */
+            answer: {
+                [key: string]: unknown;
+            };
+            /** Score */
+            score: number;
+            /** Correct */
+            correct: boolean;
+            /** Needs Manual Review */
+            needs_manual_review: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** PracticeExerciseOut */
         PracticeExerciseOut: {
             /**
@@ -2500,6 +2661,13 @@ export interface components {
             content: {
                 [key: string]: unknown;
             };
+            /** Done */
+            done: boolean;
+            /**
+             * Mastery Level
+             * @enum {string}
+             */
+            mastery_level: "new" | "practicing" | "mastered";
         };
         /** PracticeResultOut */
         PracticeResultOut: {
@@ -2936,6 +3104,43 @@ export interface components {
             content: {
                 [key: string]: unknown;
             };
+        };
+        /** TimelineEventOut */
+        TimelineEventOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "practice" | "badge" | "evaluation";
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+        };
+        /**
+         * TodaySummaryOut
+         * @description Ítem 4 (dashboard estudiante): "mi progreso hoy" — un resumen del día,
+         *     no un reemplazo de `/progress/me/activity` (que sigue siendo la serie
+         *     completa para el heatmap).
+         */
+        TodaySummaryOut: {
+            /** Submissions */
+            submissions: number;
+            /** Correct */
+            correct: number;
+            /** Current Streak */
+            current_streak: number;
+            /** Badges Earned Today */
+            badges_earned_today: components["schemas"]["BadgeOut"][];
+            /** Due Today */
+            due_today: number;
+            /** Due Tomorrow */
+            due_tomorrow: number;
         };
         /** TokenPair */
         TokenPair: {
@@ -4739,6 +4944,9 @@ export interface operations {
         parameters: {
             query: {
                 group_id: string;
+                topic_id?: string | null;
+                status?: ("pending" | "done") | null;
+                mastery?: ("new" | "practicing" | "mastered") | null;
             };
             header?: never;
             path?: never;
@@ -4753,6 +4961,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PracticeExerciseOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_practice_history_practice__exercise_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exercise_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeAttemptOut"][];
                 };
             };
             /** @description Validation Error */
@@ -5396,6 +5635,68 @@ export interface operations {
             };
         };
     };
+    get_my_today_summary_progress_me_today_get: {
+        parameters: {
+            query?: {
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodaySummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_timeline_progress_me_timeline_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineEventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_lagging_students_groups__group_id__progress_lagging_get: {
         parameters: {
             query?: never;
@@ -6020,6 +6321,86 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    list_notifications_notifications_get: {
+        parameters: {
+            query?: {
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_notification_read_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_all_notifications_read_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

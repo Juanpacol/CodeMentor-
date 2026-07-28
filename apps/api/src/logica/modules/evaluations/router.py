@@ -1,5 +1,6 @@
 import uuid
 from datetime import timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends
 from redis.asyncio import Redis
@@ -17,6 +18,7 @@ from logica.modules.evaluations.schemas import (
     EvaluationOut,
     ManualReviewItemOut,
     ManualReviewSubmitRequest,
+    PracticeAttemptOut,
     PracticeExerciseOut,
     PracticeResultOut,
     PracticeSubmitRequest,
@@ -227,10 +229,15 @@ async def submit_manual_review(
 @router.get("/practice", response_model=list[PracticeExerciseOut])
 async def list_practice(
     group_id: uuid.UUID,
+    topic_id: uuid.UUID | None = None,
+    status: Literal["pending", "done"] | None = None,
+    mastery: Literal["new", "practicing", "mastered"] | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[PracticeExerciseOut]:
-    exercises = await service.list_practice_exercises(db, user, group_id)
+    rows = await service.list_practice_exercises(
+        db, user, group_id, topic_id=topic_id, status=status, mastery=mastery
+    )
     return [
         PracticeExerciseOut(
             id=exercise.id,
@@ -238,9 +245,21 @@ async def list_practice(
             type=exercise.type,
             title=exercise.title,
             content=service.sanitize_exercise_content(exercise),
+            done=done,
+            mastery_level=mastery_level,
         )
-        for exercise in exercises
+        for exercise, done, mastery_level in rows
     ]
+
+
+@router.get("/practice/{exercise_id}/history", response_model=list[PracticeAttemptOut])
+async def get_practice_history(
+    exercise_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PracticeAttemptOut]:
+    submissions = await service.list_practice_history(db, user, exercise_id)
+    return [PracticeAttemptOut.model_validate(s) for s in submissions]
 
 
 @router.post("/practice/{exercise_id}/submit", response_model=PracticeResultOut)

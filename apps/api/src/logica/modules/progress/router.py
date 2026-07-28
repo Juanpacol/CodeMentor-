@@ -13,6 +13,8 @@ from logica.modules.progress.schemas import (
     LaggingStudentOut,
     StudentActivityOut,
     StudentProgressOut,
+    TimelineEventOut,
+    TodaySummaryOut,
 )
 from logica.modules.users.models import User
 
@@ -42,6 +44,24 @@ async def get_my_activity(
     Greenwich y las rachas se romperían a media tarde.
     """
     return await service.get_student_activity(db, user, days=days, tz_name=tz)
+
+
+@router.get("/progress/me/today", response_model=TodaySummaryOut)
+async def get_my_today_summary(
+    tz: str = Query(default="UTC", max_length=64),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TodaySummaryOut:
+    return await service.get_today_summary(db, user, tz_name=tz)
+
+
+@router.get("/progress/me/timeline", response_model=list[TimelineEventOut])
+async def get_my_timeline(
+    limit: int = Query(default=30, ge=1, le=100),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[TimelineEventOut]:
+    return await service.get_student_timeline(db, user, limit=limit)
 
 
 @router.get("/groups/{group_id}/progress/lagging", response_model=list[LaggingStudentOut])

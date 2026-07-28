@@ -8,7 +8,12 @@ from sqlalchemy.sql import ColumnElement
 
 from logica.core.audit import AuditLog
 from logica.modules.content.models import Language, Topic
-from logica.modules.evaluations.models import AttemptStatus, EvaluationAttempt, PracticeSubmission
+from logica.modules.evaluations.models import (
+    AttemptStatus,
+    Evaluation,
+    EvaluationAttempt,
+    PracticeSubmission,
+)
 from logica.modules.exercises.models import Exercise, TopicExercise
 from logica.modules.groups.models import GroupMembership
 from logica.modules.progress.models import AcademicPeriod, Badge, BadgeCriteria, StudentBadge
@@ -226,6 +231,55 @@ async def practice_accuracy_and_last_activity_in_group(
     return total, int(correct or 0), last_at
 
 
+async def recent_practice_submissions(
+    db: AsyncSession, student_id: uuid.UUID, limit: int
+) -> list[tuple[PracticeSubmission, str]]:
+    """(submission, exercise_title), most recent first — para el timeline."""
+    stmt = (
+        select(PracticeSubmission, Exercise.title)
+        .join(Exercise, Exercise.id == PracticeSubmission.exercise_id)
+        .where(PracticeSubmission.student_id == student_id)
+        .order_by(PracticeSubmission.created_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return [(submission, title) for submission, title in result.all()]
+
+
+async def recent_student_badges(
+    db: AsyncSession, student_id: uuid.UUID, limit: int
+) -> list[tuple[StudentBadge, str]]:
+    """(student_badge, badge_name), most recent first — para el timeline."""
+    stmt = (
+        select(StudentBadge, Badge.name)
+        .join(Badge, Badge.id == StudentBadge.badge_id)
+        .where(StudentBadge.student_id == student_id)
+        .order_by(StudentBadge.earned_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return [(row, name) for row, name in result.all()]
+
+
+async def recent_evaluation_attempts(
+    db: AsyncSession, student_id: uuid.UUID, limit: int
+) -> list[tuple[EvaluationAttempt, str]]:
+    """(attempt, evaluation_title), only submitted attempts, most recent first
+    — para el timeline (un intento en progreso no es un evento que mostrar)."""
+    stmt = (
+        select(EvaluationAttempt, Evaluation.title)
+        .join(Evaluation, Evaluation.id == EvaluationAttempt.evaluation_id)
+        .where(
+            EvaluationAttempt.student_id == student_id,
+            EvaluationAttempt.status == AttemptStatus.submitted,
+        )
+        .order_by(EvaluationAttempt.submitted_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return [(row, title) for row, title in result.all()]
+
+
 async def create_academic_period(
     db: AsyncSession, institution_id: uuid.UUID, name: str, start_date: date, end_date: date
 ) -> AcademicPeriod:
@@ -269,7 +323,10 @@ __all__ = [
     "mastery_by_language",
     "mastery_by_topic",
     "practice_accuracy_and_last_activity_in_group",
+    "recent_evaluation_attempts",
     "recent_practice_correctness",
+    "recent_practice_submissions",
+    "recent_student_badges",
     "sum_submitted_evaluation_scores",
     "topic_accuracy",
 ]

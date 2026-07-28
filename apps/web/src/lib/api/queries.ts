@@ -9,7 +9,18 @@ export const qk = {
   groupEvaluations: (groupId: string) => ['group-evaluations', groupId] as const,
   languages: ['languages'] as const,
   topics: (languageId?: string) => ['topics', languageId ?? 'all'] as const,
-  practice: (groupId: string) => ['practice', groupId] as const,
+  practice: (
+    groupId: string,
+    filters: { topicId?: string; status?: string; mastery?: string } = {},
+  ) =>
+    [
+      'practice',
+      groupId,
+      filters.topicId ?? 'all',
+      filters.status ?? 'all',
+      filters.mastery ?? 'all',
+    ] as const,
+  practiceHistory: (exerciseId: string) => ['practice-history', exerciseId] as const,
   assignments: {
     me: ['assignments', 'me'] as const,
     forGroup: (groupId: string) => ['assignments', 'group', groupId] as const,
@@ -17,8 +28,11 @@ export const qk = {
   progress: {
     me: ['progress', 'me'] as const,
     myActivity: ['progress', 'me', 'activity'] as const,
+    today: ['progress', 'me', 'today'] as const,
+    timeline: ['progress', 'me', 'timeline'] as const,
     lagging: (groupId: string) => ['progress', 'lagging', groupId] as const,
   },
+  notifications: ['notifications'] as const,
   exercises: (filters: { languageId?: string; topicId?: string } = {}) =>
     ['exercises', filters.languageId ?? 'all', filters.topicId ?? 'all'] as const,
   evaluation: {

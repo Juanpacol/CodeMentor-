@@ -50,6 +50,46 @@ const BADGE_ICON: Record<string, string> = {
   practice_streak: '🔥',
 }
 
+const TIMELINE_ICON: Record<string, string> = {
+  practice: '📝',
+  badge: '🏅',
+  evaluation: '📋',
+}
+
+/** Ítem 6 (timeline de actividad): un feed cronológico simple — el heatmap ya
+ * cubre "cuántos días activo", esto cubre "qué pasó exactamente". */
+function ActivityTimeline() {
+  const { data: events } = useQuery({
+    queryKey: qk.progress.timeline,
+    queryFn: () => unwrap(apiClient.GET('/progress/me/timeline')),
+  })
+
+  if (!events || events.length === 0) return null
+
+  return (
+    <div className="mb-8">
+      <h2 className="mb-3 text-lg font-semibold text-ink">Actividad reciente</h2>
+      <Card>
+        <ul className="flex flex-col gap-3">
+          {events.map((event, i) => (
+            <li key={i} className="flex items-start gap-3 text-sm">
+              <span aria-hidden="true">{TIMELINE_ICON[event.kind] ?? '•'}</span>
+              <div className="flex-1">
+                <p className="text-ink">
+                  <span className="font-medium">{event.title}</span> — {event.detail}
+                </p>
+                <p className="text-xs text-ink-secondary">
+                  {new Date(event.occurred_at).toLocaleString('es-CO')}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
+  )
+}
+
 function BadgeCard({ badge }: { badge: BadgeOut }) {
   const tilt = useTilt<HTMLDivElement>()
   return (
@@ -152,6 +192,8 @@ export function ProgressPage() {
           <ContributionHeatmap days={activity.days} today={new Date()} />
         </div>
       )}
+
+      <ActivityTimeline />
 
       <h2 className="mb-3 text-lg font-semibold text-ink">Insignias</h2>
       {progress.badges.length === 0 ? (

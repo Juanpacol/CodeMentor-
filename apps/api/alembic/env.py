@@ -35,6 +35,7 @@ from logica.modules.guides.models import (  # noqa: F401
     GuidesFolder,
     GuideTemplate,
 )
+from logica.modules.notifications.models import Notification  # noqa: F401
 from logica.modules.observability.models import ErrorLog  # noqa: F401
 from logica.modules.progress.models import (  # noqa: F401
     AcademicPeriod,

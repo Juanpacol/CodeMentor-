@@ -30,6 +30,7 @@ from logica.modules.evaluations.router import router as evaluations_router
 from logica.modules.exercises.router import router as exercises_router
 from logica.modules.groups.router import router as groups_router
 from logica.modules.guides.router import router as guides_router
+from logica.modules.notifications.router import router as notifications_router
 from logica.modules.observability.models import truncate_message, truncate_stacktrace
 from logica.modules.observability.router import router as observability_router
 from logica.modules.observability.service import best_effort_actor
@@ -239,6 +240,7 @@ def create_app() -> FastAPI:
     app.include_router(rubrics_router)
     app.include_router(assignments_router)
     app.include_router(observability_router)
+    app.include_router(notifications_router)
 
     return app
 
