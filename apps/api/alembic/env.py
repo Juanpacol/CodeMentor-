@@ -78,6 +78,11 @@ async def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        # Mismo connect_args que logica.db.create_engine — necesario contra el
+        # Transaction pooler de Supabase (PgBouncer), que reasigna la conexión
+        # de backend en cada transacción y rompe el cache de prepared
+        # statements de asyncpg si queda activo.
+        connect_args={"statement_cache_size": 0},
     )
 
     async with connectable.connect() as connection:
