@@ -1,3 +1,4 @@
+import io
 import uuid
 
 import pytest
@@ -9,8 +10,13 @@ from logica.modules.reports.repository import get_report_job
 from logica.modules.reports.service import generate_group_report
 from logica.modules.users.models import Institution
 from tests.integration.conftest import (
+    attach_exercise,
     auth_headers,
+    create_exercise,
     create_group,
+    create_language,
+    create_topic,
+    enable_topic,
     join_group,
     register_and_login,
 )
@@ -108,6 +114,55 @@ async def test_full_xlsx_report_lifecycle(client: AsyncClient, institution: Inst
         job = await get_report_job(db, uuid.UUID(job_id))
         assert job is not None
         assert job.file_path is not None
+
+
+async def test_xlsx_report_includes_lagging_status_column(
+    client: AsyncClient, institution: Institution
+) -> None:
+    from openpyxl import load_workbook
+
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
+
+    language_id = await create_language(client, teacher_access)
+    topic_id = await create_topic(client, teacher_access, language_id)
+    group = await create_group(client, teacher_access)
+    await join_group(client, student_access, group["invite_code"])
+    await enable_topic(client, teacher_access, group["id"], topic_id)
+
+    for i in range(4):
+        exercise = await create_exercise(
+            client, teacher_access, language_id, title=f"Ejercicio {i}"
+        )
+        await attach_exercise(client, teacher_access, exercise["id"], topic_id)
+        await client.post(
+            f"/practice/{exercise['id']}/submit",
+            json={"group_id": group["id"], "answer": {"value": False}},
+            headers=auth_headers(student_access),
+        )
+
+    created = await client.post(
+        f"/groups/{group['id']}/reports",
+        json={"format": "xlsx"},
+        headers=auth_headers(teacher_access),
+    )
+    job_id = created.json()["id"]
+
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        await generate_group_report(db, uuid.UUID(job_id))
+        await db.commit()
+
+    download = await client.get(f"/reports/{job_id}/download", headers=auth_headers(teacher_access))
+    assert download.status_code == 200
+
+    wb = load_workbook(io.BytesIO(download.content))
+    ws = wb.active
+    header_row = [cell.value for cell in ws[3]]
+    assert header_row[-1] == "Estado"
+    data_row = [cell.value for cell in ws[4]]
+    assert data_row[-1].startswith("Precisión")
 
 
 async def test_report_requires_valid_period(client: AsyncClient, institution: Institution) -> None:

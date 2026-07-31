@@ -130,3 +130,18 @@ async def get_practice_submission(
     db: AsyncSession, submission_id: uuid.UUID
 ) -> PracticeSubmission | None:
     return await db.get(PracticeSubmission, submission_id)
+
+
+async def list_practice_submissions(
+    db: AsyncSession, student_id: uuid.UUID, exercise_id: uuid.UUID
+) -> list[PracticeSubmission]:
+    stmt = (
+        select(PracticeSubmission)
+        .where(
+            PracticeSubmission.student_id == student_id,
+            PracticeSubmission.exercise_id == exercise_id,
+        )
+        .order_by(PracticeSubmission.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())

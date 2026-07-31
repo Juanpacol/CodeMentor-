@@ -1,16 +1,20 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from logica.ai.agents.config_service import ensure_agent_enabled
+from logica.ai.agents.models import AgentName
+from logica.ai.skills.pedagogical_feedback import generate_pedagogical_feedback
 from logica.core.errors import (
     ConflictError,
     NotFoundError,
     PermissionDeniedError,
     ValidationDomainError,
 )
+from logica.modules.assignments.repository import solved_exercise_ids
 from logica.modules.content.models import TopicGroupStateValue
 from logica.modules.content.repository import (
     get_topic,
@@ -38,6 +42,7 @@ from logica.modules.evaluations.repository import (
     list_evaluation_exercises,
     list_evaluations_for_group,
     list_pending_manual_review,
+    list_practice_submissions,
 )
 from logica.modules.exercises.models import Exercise, ExerciseStatus, ExerciseType
 from logica.modules.exercises.repository import (
@@ -51,8 +56,13 @@ from logica.modules.grading.sanitize import strip_answer_key
 from logica.modules.grading.types import GradeResult
 from logica.modules.groups.repository import get_membership
 from logica.modules.groups.service import get_group_with_access
+from logica.modules.progress import repository as progress_repository
 from logica.modules.progress.service import evaluate_and_award_badges
 from logica.modules.users.models import Role, User
+
+MasteryLevel = Literal["new", "practicing", "mastered"]
+_MASTERY_MIN_SUBMISSIONS = 5
+_MASTERY_ACCURACY_THRESHOLD = 0.8
 
 # Grace period after the timer runs out — protects against clock skew / a
 # submission that was in flight exactly at the deadline (§8.2 "pérdida de
@@ -398,31 +408,117 @@ async def submit_manual_review(
     return answer
 
 
+async def generate_answer_feedback(
+    db: AsyncSession, redis: Redis, teacher: User, evaluation_id: uuid.UUID, answer_id: uuid.UUID
+) -> EvaluationAnswer:
+    """Ítem 4 (dashboard docente): expande el resultado técnico de una
+    respuesta en feedback pedagógico para el estudiante — sin comentario
+    previo del docente, reusando la skill ya existente
+    `ai.skills.pedagogical_feedback` (nunca conectada al camino síncrono de
+    calificación, disponible on-demand)."""
+    _ensure_teacher(teacher)
+    evaluation = await _get_evaluation_in_institution(db, teacher, evaluation_id)
+    await get_group_with_access(db, teacher, evaluation.group_id)
+    await ensure_agent_enabled(db, evaluation.group_id, AgentName.grading_assistant)
+
+    answer = await get_answer_by_id(db, answer_id)
+    if answer is None:
+        raise NotFoundError("Respuesta no encontrada")
+    eval_exercise = await get_evaluation_exercise(db, answer.evaluation_exercise_id)
+    if eval_exercise is None or eval_exercise.evaluation_id != evaluation_id:
+        raise NotFoundError("Respuesta no encontrada en esta evaluación")
+
+    exercise = await get_exercise(db, eval_exercise.exercise_id)
+    if exercise is None:
+        raise NotFoundError("Ejercicio no encontrado")
+
+    is_correct = answer.manual_score is not None or answer.correct
+    feedback = await generate_pedagogical_feedback(
+        db,
+        redis,
+        teacher,
+        statement=exercise.content.get("prompt", exercise.title),
+        correct=is_correct,
+        detail={"score": answer.manual_score if answer.manual_score is not None else answer.score},
+    )
+    answer.ai_generated_feedback = feedback
+    await db.flush()
+    await db.refresh(answer)
+    return answer
+
+
 async def _enabled_topic_ids_for_group(db: AsyncSession, group_id: uuid.UUID) -> set[uuid.UUID]:
     states = await list_topic_group_states_for_group(db, group_id)
     return {s.topic_id for s in states if s.state == TopicGroupStateValue.enabled}
 
 
+def _mastery_level(total: int, correct: int) -> MasteryLevel:
+    if total == 0:
+        return "new"
+    accuracy = correct / total
+    if total >= _MASTERY_MIN_SUBMISSIONS and accuracy >= _MASTERY_ACCURACY_THRESHOLD:
+        return "mastered"
+    return "practicing"
+
+
 async def list_practice_exercises(
-    db: AsyncSession, student: User, group_id: uuid.UUID
-) -> list[Exercise]:
+    db: AsyncSession,
+    student: User,
+    group_id: uuid.UUID,
+    *,
+    topic_id: uuid.UUID | None = None,
+    status: Literal["pending", "done"] | None = None,
+    mastery: MasteryLevel | None = None,
+) -> list[tuple[Exercise, bool, MasteryLevel]]:
+    """Ítem 2 (filtros inteligentes): `mastery` es un proxy de "dificultad
+    para ti" — no hay campo de dificultad en `Exercise`, así que se deriva de
+    la propia precisión histórica del estudiante en el tema (mismos umbrales
+    que las insignias de dominio en `progress/service.py`)."""
     membership = await get_membership(db, group_id, student.id)
     if membership is None:
         raise PermissionDeniedError("No perteneces a este grupo")
 
     enabled_topic_ids = await _enabled_topic_ids_for_group(db, group_id)
+    if topic_id is not None:
+        enabled_topic_ids = {t for t in enabled_topic_ids if t == topic_id}
     if not enabled_topic_ids:
         return []
 
+    solved = await solved_exercise_ids(db, student.id)
+    mastery_by_topic: dict[uuid.UUID, MasteryLevel] = {}
+
     seen: set[uuid.UUID] = set()
-    exercises: list[Exercise] = []
-    for topic_id in enabled_topic_ids:
-        for exercise in await list_exercises(db, student.institution_id, topic_id=topic_id):
+    results: list[tuple[Exercise, bool, MasteryLevel]] = []
+    for tid in enabled_topic_ids:
+        if tid not in mastery_by_topic:
+            total, correct = await progress_repository.topic_accuracy(db, student.id, tid)
+            mastery_by_topic[tid] = _mastery_level(total, correct)
+
+        for exercise in await list_exercises(db, student.institution_id, topic_id=tid):
             if exercise.id in seen or exercise.status != ExerciseStatus.published:
                 continue
             seen.add(exercise.id)
-            exercises.append(exercise)
-    return exercises
+
+            done = exercise.id in solved
+            level = mastery_by_topic[tid]
+            if status is not None and (status == "done") != done:
+                continue
+            if mastery is not None and mastery != level:
+                continue
+            results.append((exercise, done, level))
+    return results
+
+
+async def list_practice_history(
+    db: AsyncSession, student: User, exercise_id: uuid.UUID
+) -> list[PracticeSubmission]:
+    """Ítem 3 (historial de intentos): cada envío de práctica ya se guarda
+    individual (RF-09, sin wrapper de intento) — esto solo los lista, no hay
+    tabla ni columna nueva."""
+    exercise = await get_exercise(db, exercise_id)
+    if exercise is None or exercise.institution_id != student.institution_id:
+        raise NotFoundError("Ejercicio no encontrado")
+    return await list_practice_submissions(db, student.id, exercise_id)
 
 
 async def submit_practice(

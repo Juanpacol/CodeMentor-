@@ -160,6 +160,44 @@ async def test_suggestion_appears_in_pending_approvals_until_confirmed(
     assert result.json()["total_score"] == 0.6
 
 
+async def test_generate_feedback_reuses_pedagogical_feedback_skill(
+    client: AsyncClient, institution: Institution, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
+
+    evaluation_id, answer_id, _group_id = await _setup_argued_evaluation(
+        client, teacher_access, student_access
+    )
+
+    async def fake(task: str, messages: list[dict[str, str]]) -> CompletionResult:
+        return CompletionResult(
+            text=(
+                "Buen intento — explica el porqué del ciclo, "
+                "pero falta mencionar la condición de salida."
+            ),
+            model="groq/fake",
+            prompt_tokens=1,
+            completion_tokens=1,
+        )
+
+    monkeypatch.setattr("logica.ai.harness.harness.router_complete", fake)
+
+    resp = await client.post(
+        f"/evaluations/{evaluation_id}/answers/{answer_id}/feedback",
+        headers=auth_headers(teacher_access),
+    )
+    assert resp.status_code == 200
+    assert "condición de salida" in resp.json()["ai_generated_feedback"]
+
+    result = await client.get(
+        f"/evaluations/{evaluation_id}/result", headers=auth_headers(student_access)
+    )
+    answer_out = result.json()["answers"][0]
+    assert "condición de salida" in answer_out["ai_generated_feedback"]
+
+
 async def test_grading_assistant_disabled_blocks_suggestion(
     client: AsyncClient, institution: Institution, monkeypatch: pytest.MonkeyPatch
 ) -> None:

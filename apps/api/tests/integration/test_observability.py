@@ -48,7 +48,11 @@ async def test_unhandled_exception_returns_generic_500_without_leaking(
         resp = await client.get("/__test_boom__")
 
     assert resp.status_code == 500
-    assert resp.json() == {"detail": "Error interno del servidor."}
+    body = resp.json()
+    assert body["code"] == "internal_error"
+    assert body["message"] == "Error interno del servidor."
+    assert body["hint"] is None
+    assert body["request_id"]
     assert "boom secreto" not in resp.text
 
 
@@ -63,7 +67,11 @@ async def test_logica_error_still_returns_its_own_status_and_message(
 
     resp = await client.get(f"/reports/{uuid.uuid4()}", headers=auth_headers(teacher_access))
     assert resp.status_code == 404
-    assert resp.json() == {"detail": "Reporte no encontrado"}
+    body = resp.json()
+    assert body["code"] == "not_found"
+    assert body["message"] == "Reporte no encontrado"
+    assert body["hint"] is None
+    assert body["request_id"]
 
     session_factory = get_session_factory()
     async with session_factory() as db:
@@ -172,6 +180,59 @@ async def test_list_errors_filters_by_status_code(
     assert body["items"][0]["exception_type"] == "TimeoutError"
 
 
+async def test_errors_summary_groups_by_exception_type_and_orders_by_count(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        for message in ("m1", "m2"):
+            await observability_repository.create_error_log(
+                db,
+                institution_id=institution.id,
+                user_id=None,
+                path="/a",
+                method="GET",
+                status_code=500,
+                exception_type="ValueError",
+                message=message,
+                stacktrace=None,
+            )
+        await observability_repository.create_error_log(
+            db,
+            institution_id=institution.id,
+            user_id=None,
+            path="/b",
+            method="GET",
+            status_code=502,
+            exception_type="TimeoutError",
+            message="m3",
+            stacktrace=None,
+        )
+        await db.commit()
+
+    resp = await client.get("/observability/errors/summary", headers=auth_headers(teacher_access))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body[0]["exception_type"] == "ValueError"
+    assert body[0]["count"] == 2
+    assert body[0]["sample_message"] in ("m1", "m2")
+    assert body[1]["exception_type"] == "TimeoutError"
+    assert body[1]["count"] == 1
+
+
+async def test_errors_summary_forbidden_for_students(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
+
+    resp = await client.get("/observability/errors/summary", headers=auth_headers(student_access))
+    assert resp.status_code == 403
+
+
 async def test_audit_log_listing_and_filters(client: AsyncClient, institution: Institution) -> None:
     domain = institution.email_domains[0]
     teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
@@ -193,8 +254,19 @@ async def test_audit_log_listing_and_filters(client: AsyncClient, institution: I
     resp = await client.get("/observability/audit", headers=auth_headers(teacher_access))
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["total"] == 1
-    assert body["items"][0]["action"] == "role_changed"
+    # Los dos `register_and_login` de arriba también dejan rastro: el login se
+    # audita para poder contar conexiones en el perfil del estudiante (no hay
+    # tabla de sesiones — los refresh tokens son JWT sin fila en la BD).
+    acciones = [item["action"] for item in body["items"]]
+    assert acciones.count("role_changed") == 1
+    assert acciones.count("login") == 2
+
+    solo_roles = await client.get(
+        "/observability/audit",
+        params={"action": "role_changed"},
+        headers=auth_headers(teacher_access),
+    )
+    assert solo_roles.json()["total"] == 1
 
     filtered = await client.get(
         "/observability/audit",
@@ -344,7 +416,10 @@ async def test_service_unavailable_still_degrades_gracefully_for_the_user(
         resp = await client.get("/__test_ai_down__")
 
     assert resp.status_code == 503
-    assert "no está disponible" in resp.json()["detail"]
+    body = resp.json()
+    assert "no está disponible" in body["message"]
+    assert body["code"] == "ai_all_providers_failed"
+    assert body["hint"]
     # No se filtra el detalle interno de los proveedores al cliente.
     assert "groq" not in resp.text
 

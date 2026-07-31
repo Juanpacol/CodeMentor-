@@ -15,6 +15,7 @@ from logica.core.security import (
     verify_password,
 )
 from logica.modules.users.models import Institution, PasswordResetToken, Role, User
+from logica.modules.users.oauth import verify_google_id_token
 from logica.modules.users.repository import (
     find_institution_by_email_domain,
     find_user_by_email_any_institution,
@@ -44,8 +45,8 @@ async def _resolve_institution(
             return institutions[0]
 
     raise ValidationDomainError(
-        "No se pudo verificar tu identidad institucional: usa el correo del "
-        "colegio o proporciona tu código de estudiante."
+        "No se pudo verificar tu identidad institucional",
+        hint="Usa el correo del colegio o proporciona tu código de estudiante.",
     )
 
 
@@ -96,9 +97,66 @@ async def authenticate(db: AsyncSession, email: str, password: str) -> TokenPair
         user = await find_user_by_email_any_institution(db, email)
 
     if user is None or not verify_password(password, user.hashed_password):
-        raise ValidationDomainError("Correo o contraseña incorrectos")
+        raise ValidationDomainError(
+            "Correo o contraseña incorrectos",
+            hint="Revisa que no haya errores de tipeo o usa '¿Olvidaste tu contraseña?'.",
+        )
     if not user.is_active:
         raise PermissionDeniedError("Cuenta inactiva")
+
+    # "Cuántas veces me he conectado" del perfil del estudiante sale de acá. Se
+    # reusa el rastro de auditoría en vez de crear una tabla de sesiones: los
+    # refresh tokens son JWT sin fila en la BD (la revocación vive en Redis), así
+    # que no había ningún lado donde contar conexiones.
+    await record_audit(
+        db,
+        institution_id=user.institution_id,
+        actor_user_id=user.id,
+        action="login",
+        target_type="user",
+        target_id=str(user.id),
+    )
+
+    return _issue_token_pair(user)
+
+
+async def authenticate_google(db: AsyncSession, id_token: str) -> TokenPair:
+    claims = verify_google_id_token(id_token)
+
+    institution = await find_institution_by_email_domain(db, claims.email)
+    if institution is None:
+        raise ValidationDomainError(
+            "No se pudo verificar tu identidad institucional: usa tu correo institucional"
+        )
+
+    user = await get_user_by_email(db, institution.id, claims.email)
+    if user is None:
+        user = User(
+            institution_id=institution.id,
+            email=claims.email.lower(),
+            student_code=None,
+            full_name=claims.full_name,
+            # Cuenta creada por OAuth: nadie conoce esta contraseña, así que no
+            # habilita login por email/password (no hay flujo para "setearla"
+            # después salvo password-reset, que sigue funcionando igual).
+            hashed_password=hash_password(secrets.token_urlsafe(32)),
+            role=Role.student,
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+
+    if not user.is_active:
+        raise PermissionDeniedError("Cuenta inactiva")
+
+    await record_audit(
+        db,
+        institution_id=user.institution_id,
+        actor_user_id=user.id,
+        action="login_google",
+        target_type="user",
+        target_id=str(user.id),
+    )
 
     return _issue_token_pair(user)
 

@@ -79,6 +79,29 @@ async def test_all_providers_failing_raises_with_all_errors(
     assert len(exc_info.value.errors) == 3
 
 
+async def test_provider_failures_travel_in_details_not_only_in_the_log(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """El `message` es el texto amable e idéntico para toda causa. Sin `details`,
+    una clave de API vencida y tres proveedores con 429 se leen igual en la UI, y
+    el docente no tiene forma de saber si reintentar sirve de algo."""
+
+    async def fake_completion_fn(model: str, messages: list[dict[str, str]]) -> Any:
+        raise RuntimeError(f"{model} down")
+
+    monkeypatch.setattr("logica.ai.harness.router._completion_fn", fake_completion_fn)
+
+    with pytest.raises(AllProvidersFailedError) as exc_info:
+        await complete("progressive_hint", [{"role": "user", "content": "hola"}])
+
+    exc = exc_info.value
+    assert exc.code == "ai_all_providers_failed"
+    assert exc.details is not None
+    assert exc.details["task"] == "progressive_hint"
+    assert exc.details["providers"] == exc.errors
+    assert all("down" in entry for entry in exc.details["providers"])
+
+
 async def test_cheap_task_uses_cheap_chain(monkeypatch: pytest.MonkeyPatch) -> None:
     used_models: list[str] = []
 

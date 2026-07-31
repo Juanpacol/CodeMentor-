@@ -6,6 +6,7 @@ import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Callout } from '../../components/ui/Callout'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { PillTabs } from '../../components/ui/Tabs'
 import { apiClient, isAiUnavailable, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
 import type { components } from '../../lib/api/schema'
@@ -35,6 +36,7 @@ function toBarListItems(students: LaggingStudentOut[]): BarListItem[] {
 export function AnalyticsTab({ groupId }: { groupId: string }) {
   const [summary, setSummary] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState(false)
+  const [topicId, setTopicId] = useState<string>('all')
 
   const generateSummary = useMutation({
     mutationFn: () =>
@@ -52,10 +54,26 @@ export function AnalyticsTab({ groupId }: { groupId: string }) {
     },
   })
 
-  const { data: lagging, isLoading } = useQuery({
-    queryKey: qk.progress.lagging(groupId),
+  const { data: curriculum } = useQuery({
+    queryKey: qk.curriculum(groupId),
     queryFn: () =>
-      unwrap(apiClient.GET('/groups/{group_id}/progress/lagging', { params: { path: { group_id: groupId } } })),
+      unwrap(apiClient.GET('/groups/{group_id}/curriculum', { params: { path: { group_id: groupId } } })),
+  })
+
+  const { data: lagging, isLoading } = useQuery({
+    queryKey: [...qk.progress.lagging(groupId), topicId],
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/groups/{group_id}/progress/lagging', {
+          params: {
+            path: { group_id: groupId },
+            query: { topic_id: topicId === 'all' ? undefined : topicId },
+          },
+        }),
+      ),
+    // "Tiempo real" vía polling (ítem 1) — mismo patrón que ReportsTab, sin
+    // WebSockets/SSE nuevos en el stack.
+    refetchInterval: 15_000,
   })
 
   return (
@@ -83,6 +101,17 @@ export function AnalyticsTab({ groupId }: { groupId: string }) {
 
       <div>
         <h3 className="mb-3 text-sm font-semibold text-ink">Estudiantes rezagados</h3>
+        {curriculum && curriculum.length > 0 && (
+          <PillTabs
+            className="mb-3"
+            value={topicId}
+            onChange={setTopicId}
+            tabs={[
+              { value: 'all', label: 'Todos los temas' },
+              ...curriculum.map((c) => ({ value: c.topic.id, label: c.topic.name })),
+            ]}
+          />
+        )}
         {!isLoading && lagging?.length === 0 && (
           <EmptyState emoji="🎉" title="Nadie está rezagado por ahora" />
         )}

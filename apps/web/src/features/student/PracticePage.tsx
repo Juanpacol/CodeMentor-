@@ -11,11 +11,21 @@ import { PillTabs } from '../../components/ui/Tabs'
 import { Tag } from '../../components/ui/Tag'
 import { apiClient, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
+import { PracticeHistoryPanel } from './PracticeHistoryPanel'
 import { TutorChatPanel } from './TutorChatPanel'
+
+const MASTERY_LABEL: Record<string, string> = {
+  new: 'Nuevo',
+  practicing: 'Practicando',
+  mastered: 'Dominado',
+}
 
 export function PracticePage() {
   const { groupId } = useParams<{ groupId: string }>()
   const [languageId, setLanguageId] = useState<string>('all')
+  const [topicId, setTopicId] = useState<string>('all')
+  const [status, setStatus] = useState<string>('all')
+  const [mastery, setMastery] = useState<string>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [answer, setAnswer] = useState<Record<string, unknown>>({})
   const [attemptNumber, setAttemptNumber] = useState(1)
@@ -28,10 +38,34 @@ export function PracticePage() {
     queryFn: () => unwrap(apiClient.GET('/languages')),
   })
 
-  const { data: exercises, isLoading } = useQuery({
-    queryKey: qk.practice(groupId!),
+  const { data: curriculum } = useQuery({
+    queryKey: qk.curriculum(groupId!),
     queryFn: () =>
-      unwrap(apiClient.GET('/practice', { params: { query: { group_id: groupId! } } })),
+      unwrap(apiClient.GET('/groups/{group_id}/curriculum', { params: { path: { group_id: groupId! } } })),
+    enabled: Boolean(groupId),
+  })
+
+  const filterArgs = {
+    topicId: topicId === 'all' ? undefined : topicId,
+    status: status === 'all' ? undefined : status,
+    mastery: mastery === 'all' ? undefined : mastery,
+  }
+
+  const { data: exercises, isLoading } = useQuery({
+    queryKey: qk.practice(groupId!, filterArgs),
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/practice', {
+          params: {
+            query: {
+              group_id: groupId!,
+              topic_id: filterArgs.topicId,
+              status: filterArgs.status as 'pending' | 'done' | undefined,
+              mastery: filterArgs.mastery as 'new' | 'practicing' | 'mastered' | undefined,
+            },
+          },
+        }),
+      ),
     enabled: Boolean(groupId),
   })
 
@@ -114,6 +148,8 @@ export function PracticePage() {
             <Button className="mt-5" disabled={submit.isPending} onClick={() => submit.mutate()}>
               {submit.isPending ? 'Enviando...' : 'Enviar respuesta'}
             </Button>
+
+            <PracticeHistoryPanel exerciseId={selected.id} key={`history-${selected.id}-${attemptNumber}`} />
           </Card>
           <TutorChatPanel groupId={groupId!} exerciseId={selected.id} key={`${selected.id}-${attemptNumber}`} />
         </div>
@@ -127,23 +163,61 @@ export function PracticePage() {
 
       {languages && languages.length > 0 && (
         <PillTabs
-          className="mb-6"
+          className="mb-3"
           value={languageId}
           onChange={setLanguageId}
           tabs={[{ value: 'all', label: 'Todos' }, ...languages.map((l) => ({ value: l.id, label: l.name }))]}
         />
       )}
 
+      {curriculum && curriculum.length > 0 && (
+        <PillTabs
+          className="mb-3"
+          value={topicId}
+          onChange={setTopicId}
+          tabs={[
+            { value: 'all', label: 'Todos los temas' },
+            ...curriculum.map((c) => ({ value: c.topic.id, label: c.topic.name })),
+          ]}
+        />
+      )}
+
+      <div className="mb-6 flex flex-wrap gap-4">
+        <PillTabs
+          value={status}
+          onChange={setStatus}
+          tabs={[
+            { value: 'all', label: 'Todos' },
+            { value: 'pending', label: 'Pendientes' },
+            { value: 'done', label: 'Resueltos' },
+          ]}
+        />
+        <PillTabs
+          value={mastery}
+          onChange={setMastery}
+          tabs={[
+            { value: 'all', label: 'Cualquier dominio' },
+            { value: 'new', label: MASTERY_LABEL.new },
+            { value: 'practicing', label: MASTERY_LABEL.practicing },
+            { value: 'mastered', label: MASTERY_LABEL.mastered },
+          ]}
+        />
+      </div>
+
       {!isLoading && filtered.length === 0 && (
-        <EmptyState emoji="🧩" title="No hay ejercicios disponibles todavía" />
+        <EmptyState emoji="🧩" title="No hay ejercicios disponibles con este filtro" />
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {filtered.map((exercise) => (
           <button key={exercise.id} onClick={() => openExercise(exercise.id)} className="text-left">
             <Card interactive>
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex items-center justify-between gap-2">
                 <Tag>{EXERCISE_TYPE_LABELS[exercise.type]}</Tag>
+                <div className="flex items-center gap-2">
+                  <Tag>{MASTERY_LABEL[exercise.mastery_level]}</Tag>
+                  {exercise.done && <Tag>✓ Resuelto</Tag>}
+                </div>
               </div>
               <h3 className="font-medium text-ink">{exercise.title}</h3>
             </Card>

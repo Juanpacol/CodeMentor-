@@ -109,6 +109,60 @@ async def test_incorrect_practice_never_awards_mastery_badge(
     assert body["badges"] == []
 
 
+async def test_today_summary_reflects_todays_submissions_and_streak(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
+
+    language_id = await create_language(client, teacher_access)
+    topic_id = await create_topic(client, teacher_access, language_id)
+    exercise = await create_exercise(client, teacher_access, language_id)
+    await attach_exercise(client, teacher_access, exercise["id"], topic_id)
+    group = await create_group(client, teacher_access)
+    await enable_topic(client, teacher_access, group["id"], topic_id)
+    await join_group(client, student_access, group["invite_code"])
+
+    await _submit_practice(client, student_access, exercise["id"], group["id"], value=True)
+
+    resp = await client.get(
+        "/progress/me/today", params={"tz": "UTC"}, headers=auth_headers(student_access)
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["submissions"] == 1
+    assert body["correct"] == 1
+    assert body["current_streak"] == 1
+    assert body["due_today"] == 0
+    assert body["due_tomorrow"] == 0
+
+
+async def test_timeline_includes_recent_practice_submission(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
+
+    language_id = await create_language(client, teacher_access)
+    topic_id = await create_topic(client, teacher_access, language_id)
+    exercise = await create_exercise(client, teacher_access, language_id, title="Mi ejercicio")
+    await attach_exercise(client, teacher_access, exercise["id"], topic_id)
+    group = await create_group(client, teacher_access)
+    await enable_topic(client, teacher_access, group["id"], topic_id)
+    await join_group(client, student_access, group["invite_code"])
+
+    await _submit_practice(client, student_access, exercise["id"], group["id"], value=True)
+
+    resp = await client.get("/progress/me/timeline", headers=auth_headers(student_access))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["kind"] == "practice"
+    assert body[0]["title"] == "Mi ejercicio"
+
+
 async def test_badge_is_not_awarded_twice(client: AsyncClient, institution: Institution) -> None:
     domain = institution.email_domains[0]
     teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
@@ -162,6 +216,46 @@ async def test_lagging_students_flags_low_accuracy(
     lagging = resp.json()
     assert len(lagging) == 1
     assert lagging[0]["reason"].startswith("Precisión")
+
+
+async def test_lagging_students_filtered_by_topic(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
+
+    language_id = await create_language(client, teacher_access)
+    topic_weak = await create_topic(client, teacher_access, language_id, name="Débil")
+    topic_strong = await create_topic(client, teacher_access, language_id, name="Fuerte")
+    group = await create_group(client, teacher_access)
+    await join_group(client, student_access, group["invite_code"])
+    await enable_topic(client, teacher_access, group["id"], topic_weak)
+    await enable_topic(client, teacher_access, group["id"], topic_strong)
+
+    for i in range(4):
+        exercise = await create_exercise(client, teacher_access, language_id, title=f"Débil {i}")
+        await attach_exercise(client, teacher_access, exercise["id"], topic_weak)
+        await _submit_practice(client, student_access, exercise["id"], group["id"], value=False)
+
+    for i in range(4):
+        exercise = await create_exercise(client, teacher_access, language_id, title=f"Fuerte {i}")
+        await attach_exercise(client, teacher_access, exercise["id"], topic_strong)
+        await _submit_practice(client, student_access, exercise["id"], group["id"], value=True)
+
+    weak_resp = await client.get(
+        f"/groups/{group['id']}/progress/lagging",
+        params={"topic_id": topic_weak},
+        headers=auth_headers(teacher_access),
+    )
+    assert len(weak_resp.json()) == 1
+
+    strong_resp = await client.get(
+        f"/groups/{group['id']}/progress/lagging",
+        params={"topic_id": topic_strong},
+        headers=auth_headers(teacher_access),
+    )
+    assert len(strong_resp.json()) == 0
 
 
 async def test_lagging_students_forbidden_for_students(

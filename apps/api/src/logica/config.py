@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     institution_email_domains: list[str] = Field(default_factory=lambda: ["inem.edu.co"])
 
+    google_client_id: str | None = None
+
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
     ollama_base_url: str = "http://localhost:11434"

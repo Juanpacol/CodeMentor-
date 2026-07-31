@@ -27,6 +27,7 @@ async def create_error_log(
     exception_type: str,
     message: str,
     stacktrace: str | None,
+    request_id: str | None = None,
 ) -> ErrorLog:
     entry = ErrorLog(
         institution_id=institution_id,
@@ -37,6 +38,7 @@ async def create_error_log(
         exception_type=exception_type,
         message=message,
         stacktrace=stacktrace,
+        request_id=request_id,
     )
     db.add(entry)
     await db.flush()
@@ -73,6 +75,64 @@ async def list_error_logs(
     )
     rows = list((await db.execute(rows_stmt)).scalars().all())
     return rows, Page(total=total, page=page, page_size=page_size)
+
+
+@dataclass(frozen=True)
+class ErrorSummaryRow:
+    exception_type: str
+    count: int
+    last_seen: datetime
+    sample_message: str
+
+
+async def summarize_errors(
+    db: AsyncSession,
+    institution_id: uuid.UUID,
+    *,
+    date_from: date | None,
+    date_to: date | None,
+) -> list[ErrorSummaryRow]:
+    """Errores más frecuentes (item 5): agrupa por `exception_type` en vez de
+    `code` — varias excepciones de dominio distintas comparten el mismo
+    `ErrorCode` (ej. `validation`), pero el tipo de excepción es lo que un
+    docente/admin necesita para saber qué se está rompiendo. `sample_message`
+    trae el mensaje más reciente por tipo con una query aparte: la
+    cardinalidad de `exception_type` es acotada (decenas, no miles), así que
+    N+1 acá es más simple que una window function sin costo real."""
+    stmt = select(
+        ErrorLog.exception_type,
+        func.count().label("count"),
+        func.max(ErrorLog.created_at).label("last_seen"),
+    ).where(ErrorLog.institution_id == institution_id)
+    if date_from is not None:
+        stmt = stmt.where(ErrorLog.created_at >= date_from)
+    if date_to is not None:
+        stmt = stmt.where(ErrorLog.created_at <= date_to)
+    stmt = stmt.group_by(ErrorLog.exception_type).order_by(func.count().desc())
+
+    rows = (await db.execute(stmt)).all()
+
+    summaries = []
+    for exception_type, count, last_seen in rows:
+        sample_stmt = (
+            select(ErrorLog.message)
+            .where(
+                ErrorLog.institution_id == institution_id,
+                ErrorLog.exception_type == exception_type,
+            )
+            .order_by(ErrorLog.created_at.desc())
+            .limit(1)
+        )
+        sample_message = (await db.execute(sample_stmt)).scalar_one()
+        summaries.append(
+            ErrorSummaryRow(
+                exception_type=exception_type,
+                count=count,
+                last_seen=last_seen,
+                sample_message=sample_message,
+            )
+        )
+    return summaries
 
 
 async def list_audit_logs(

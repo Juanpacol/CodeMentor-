@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 
 import { BarList, type BarListItem } from '../../components/ui/BarList'
 import { Card } from '../../components/ui/Card'
+import { ContributionHeatmap } from '../../components/ui/ContributionHeatmap'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { Stat } from '../../components/ui/Stat'
@@ -49,6 +50,46 @@ const BADGE_ICON: Record<string, string> = {
   practice_streak: '🔥',
 }
 
+const TIMELINE_ICON: Record<string, string> = {
+  practice: '📝',
+  badge: '🏅',
+  evaluation: '📋',
+}
+
+/** Ítem 6 (timeline de actividad): un feed cronológico simple — el heatmap ya
+ * cubre "cuántos días activo", esto cubre "qué pasó exactamente". */
+function ActivityTimeline() {
+  const { data: events } = useQuery({
+    queryKey: qk.progress.timeline,
+    queryFn: () => unwrap(apiClient.GET('/progress/me/timeline')),
+  })
+
+  if (!events || events.length === 0) return null
+
+  return (
+    <div className="mb-8">
+      <h2 className="mb-3 text-lg font-semibold text-ink">Actividad reciente</h2>
+      <Card>
+        <ul className="flex flex-col gap-3">
+          {events.map((event, i) => (
+            <li key={i} className="flex items-start gap-3 text-sm">
+              <span aria-hidden="true">{TIMELINE_ICON[event.kind] ?? '•'}</span>
+              <div className="flex-1">
+                <p className="text-ink">
+                  <span className="font-medium">{event.title}</span> — {event.detail}
+                </p>
+                <p className="text-xs text-ink-secondary">
+                  {new Date(event.occurred_at).toLocaleString('es-CO')}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
+  )
+}
+
 function BadgeCard({ badge }: { badge: BadgeOut }) {
   const tilt = useTilt<HTMLDivElement>()
   return (
@@ -77,6 +118,19 @@ export function ProgressPage() {
     queryFn: () => unwrap(apiClient.GET('/progress/me')),
   })
 
+  // La zona la manda el navegador: agrupar en UTC partiría cada día en dos para
+  // cualquiera al oeste de Greenwich, y las rachas se romperían a media tarde.
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const { data: activity } = useQuery({
+    queryKey: qk.progress.myActivity,
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/progress/me/activity', {
+          params: { query: { days: 365, tz: timeZone } },
+        }),
+      ),
+  })
+
   if (isLoading || !progress) {
     return (
       <div className="flex flex-col gap-4">
@@ -92,7 +146,7 @@ export function ProgressPage() {
     <div>
       <h1 className="mb-6 text-2xl font-semibold text-ink">Mi progreso</h1>
 
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <Card>
           <Stat
             label="Puntos acumulados"
@@ -117,7 +171,29 @@ export function ProgressPage() {
             value={weightedAccuracy !== null ? `${Math.round(weightedAccuracy * 100)}%` : '—'}
           />
         </Card>
+        <Card>
+          <Stat
+            label="Racha actual"
+            value={activity ? `🔥 ${activity.current_streak}` : '—'}
+            hint={activity ? `Máxima: ${activity.longest_streak} días` : undefined}
+          />
+        </Card>
+        <Card>
+          <Stat
+            label="Conexiones"
+            value={activity?.logins ?? '—'}
+            hint={activity ? `${activity.active_days} días activos` : undefined}
+          />
+        </Card>
       </div>
+
+      {activity && (
+        <div className="mb-8">
+          <ContributionHeatmap days={activity.days} today={new Date()} />
+        </div>
+      )}
+
+      <ActivityTimeline />
 
       <h2 className="mb-3 text-lg font-semibold text-ink">Insignias</h2>
       {progress.badges.length === 0 ? (

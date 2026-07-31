@@ -12,6 +12,7 @@ from logica.modules.exercises.schemas import (
     ExerciseCreateRequest,
     ExerciseOut,
     ExerciseUpdateRequest,
+    ExerciseVersionOut,
 )
 from logica.modules.users.models import User
 
@@ -59,6 +60,28 @@ async def update_exercise(
     exercise = await service.update_exercise(
         db, user, exercise_id, payload.title, payload.content, payload.status
     )
+    await db.commit()
+    return exercise
+
+
+@router.get("/{exercise_id}/versions", response_model=list[ExerciseVersionOut])
+async def list_exercise_versions(
+    exercise_id: uuid.UUID,
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+) -> list[ExerciseVersionOut]:
+    versions = await service.list_versions(db, user, exercise_id)
+    return [ExerciseVersionOut.model_validate(v) for v in versions]
+
+
+@router.post("/{exercise_id}/versions/{version_id}/restore", response_model=ExerciseOut)
+async def restore_exercise_version(
+    exercise_id: uuid.UUID,
+    version_id: uuid.UUID,
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+) -> Exercise:
+    exercise = await service.restore_version(db, user, exercise_id, version_id)
     await db.commit()
     return exercise
 

@@ -64,6 +64,9 @@ describe('ActivityLogPage', () => {
         if (url.includes('/observability/audit')) {
           return new Response(JSON.stringify(AUDIT_RESPONSE), { status: 200 })
         }
+        if (url.includes('/observability/errors/summary')) {
+          return new Response(JSON.stringify([]), { status: 200 })
+        }
         return new Response(JSON.stringify(ERRORS_RESPONSE), { status: 200 })
       }),
     )
@@ -80,13 +83,16 @@ describe('ActivityLogPage', () => {
   it('shows an empty state when there are no errors', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(
-        async () =>
-          new Response(
-            JSON.stringify({ items: [], total: 0, page: 1, page_size: 25 }),
-            { status: 200 },
-          ),
-      ),
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = input instanceof Request ? input.url : String(input)
+        if (url.includes('/observability/errors/summary')) {
+          return new Response(JSON.stringify([]), { status: 200 })
+        }
+        return new Response(
+          JSON.stringify({ items: [], total: 0, page: 1, page_size: 25 }),
+          { status: 200 },
+        )
+      }),
     )
 
     renderPage()

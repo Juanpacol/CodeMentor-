@@ -19,6 +19,7 @@ from logica.modules.users.models import User
 
 @dataclass(frozen=True)
 class StudentReportRow:
+    student_id: uuid.UUID
     full_name: str
     email: str
     practice_total: int
@@ -142,6 +143,7 @@ async def student_report_rows(
 
         rows.append(
             StudentReportRow(
+                student_id=student.id,
                 full_name=student.full_name,
                 email=student.email,
                 practice_total=practice_total,

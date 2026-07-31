@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -39,6 +40,45 @@ class StudentProgressOut(BaseModel):
     badges: list[BadgeOut]
     mastery_by_topic: list[TopicMasteryOut]
     mastery_by_language: list[LanguageMasteryOut]
+
+
+class DailyActivityOut(BaseModel):
+    """Un día con actividad. Los días sin nada NO vienen en la lista: rellenar
+    365 ceros triplicaría la respuesta y el frontend igual tiene que construir
+    la rejilla completa del calendario."""
+
+    date: date
+    submissions: int
+    correct: int
+
+
+class StudentActivityOut(BaseModel):
+    days: list[DailyActivityOut]
+    current_streak: int
+    longest_streak: int
+    active_days: int
+    total_submissions: int
+    logins: int
+
+
+class TodaySummaryOut(BaseModel):
+    """Ítem 4 (dashboard estudiante): "mi progreso hoy" — un resumen del día,
+    no un reemplazo de `/progress/me/activity` (que sigue siendo la serie
+    completa para el heatmap)."""
+
+    submissions: int
+    correct: int
+    current_streak: int
+    badges_earned_today: list[BadgeOut]
+    due_today: int
+    due_tomorrow: int
+
+
+class TimelineEventOut(BaseModel):
+    kind: Literal["practice", "badge", "evaluation"]
+    title: str
+    detail: str
+    occurred_at: datetime
 
 
 class LaggingStudentOut(BaseModel):

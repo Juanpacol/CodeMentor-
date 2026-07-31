@@ -1,5 +1,6 @@
 import uuid
 from datetime import timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends
 from redis.asyncio import Redis
@@ -10,6 +11,7 @@ from logica.core.redis_dep import get_redis
 from logica.core.security import get_current_user
 from logica.db import get_db
 from logica.modules.evaluations import service
+from logica.modules.evaluations.repository import get_attempt_by_id
 from logica.modules.evaluations.schemas import (
     AnswerSummaryOut,
     AttemptResultOut,
@@ -17,6 +19,7 @@ from logica.modules.evaluations.schemas import (
     EvaluationOut,
     ManualReviewItemOut,
     ManualReviewSubmitRequest,
+    PracticeAttemptOut,
     PracticeExerciseOut,
     PracticeResultOut,
     PracticeSubmitRequest,
@@ -151,6 +154,7 @@ async def _build_result(
                 correct=a.correct,
                 needs_manual_review=a.needs_manual_review,
                 manual_score=a.manual_score,
+                ai_generated_feedback=a.ai_generated_feedback,
             )
             for a in answers
         ],
@@ -186,6 +190,7 @@ async def list_evaluation_answers(
             needs_manual_review=answer.needs_manual_review,
             manual_score=answer.manual_score,
             ai_suggested_score=answer.ai_suggested_score,
+            ai_generated_feedback=answer.ai_generated_feedback,
         )
         for answer, student_id in pairs
     ]
@@ -224,13 +229,45 @@ async def submit_manual_review(
     return {"detail": "Calificación registrada"}
 
 
+@router.post(
+    "/evaluations/{evaluation_id}/answers/{answer_id}/feedback", response_model=AnswerSummaryOut
+)
+async def generate_answer_feedback(
+    evaluation_id: uuid.UUID,
+    answer_id: uuid.UUID,
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> AnswerSummaryOut:
+    answer = await service.generate_answer_feedback(db, redis, user, evaluation_id, answer_id)
+    await db.commit()
+    attempt = await get_attempt_by_id(db, answer.attempt_id)
+    assert attempt is not None
+    return AnswerSummaryOut(
+        answer_id=answer.id,
+        evaluation_exercise_id=answer.evaluation_exercise_id,
+        student_id=attempt.student_id,
+        score=answer.score,
+        correct=answer.correct,
+        needs_manual_review=answer.needs_manual_review,
+        manual_score=answer.manual_score,
+        ai_suggested_score=answer.ai_suggested_score,
+        ai_generated_feedback=answer.ai_generated_feedback,
+    )
+
+
 @router.get("/practice", response_model=list[PracticeExerciseOut])
 async def list_practice(
     group_id: uuid.UUID,
+    topic_id: uuid.UUID | None = None,
+    status: Literal["pending", "done"] | None = None,
+    mastery: Literal["new", "practicing", "mastered"] | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[PracticeExerciseOut]:
-    exercises = await service.list_practice_exercises(db, user, group_id)
+    rows = await service.list_practice_exercises(
+        db, user, group_id, topic_id=topic_id, status=status, mastery=mastery
+    )
     return [
         PracticeExerciseOut(
             id=exercise.id,
@@ -238,9 +275,21 @@ async def list_practice(
             type=exercise.type,
             title=exercise.title,
             content=service.sanitize_exercise_content(exercise),
+            done=done,
+            mastery_level=mastery_level,
         )
-        for exercise in exercises
+        for exercise, done, mastery_level in rows
     ]
+
+
+@router.get("/practice/{exercise_id}/history", response_model=list[PracticeAttemptOut])
+async def get_practice_history(
+    exercise_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PracticeAttemptOut]:
+    submissions = await service.list_practice_history(db, user, exercise_id)
+    return [PracticeAttemptOut.model_validate(s) for s in submissions]
 
 
 @router.post("/practice/{exercise_id}/submit", response_model=PracticeResultOut)

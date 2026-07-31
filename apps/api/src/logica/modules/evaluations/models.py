@@ -128,6 +128,11 @@ class EvaluationAnswer(UUIDPkMixin, TimestampMixin, Base):
     # the existing manual-review endpoint before it ever affects a grade.
     ai_suggested_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     ai_suggested_justification: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Distinto de `ai_suggested_justification` (esa es para que el docente
+    # decida el score, nunca se muestra al estudiante): esto es feedback
+    # pedagógico ya expandido en español simple, visible en el resultado del
+    # estudiante — generado on-demand por el docente, nunca automático.
+    ai_generated_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class PracticeSubmission(UUIDPkMixin, TenantMixin, TimestampMixin, Base):

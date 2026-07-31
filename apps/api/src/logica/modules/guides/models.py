@@ -1,6 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -101,6 +102,9 @@ class GuideStatus(enum.StrEnum):
     published = "published"
     archived = "archived"
     failed = "failed"
+    # Sin esto, una guía cancelada quedaba en `generating` para siempre: no
+    # había endpoint de cancelación y el worker nunca la iba a completar.
+    cancelled = "cancelled"
 
 
 class Guide(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
@@ -143,6 +147,9 @@ class Guide(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Ver `RubricItem.error_code`: el detalle accionable detrás del mensaje amable.
+    error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    error_details: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     # Títulos de RagDocument que fundamentaron el contenido — mismo idioma que
     # `TutorMessage.sources`: el docente verifica de qué material salió en vez
     # de confiar ciegamente en el LLM.

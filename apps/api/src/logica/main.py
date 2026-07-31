@@ -19,14 +19,18 @@ from logica.ai.agents.router import router as ai_agents_router
 from logica.ai.rag.router import router as rag_router
 from logica.config import get_settings
 from logica.core.errors import LogicaError
+from logica.core.logging import configure_logging
 from logica.core.rate_limit import limiter
+from logica.core.request_id import RequestIdMiddleware
 from logica.core.security_headers import SecurityHeadersMiddleware
 from logica.db import get_engine
+from logica.modules.assignments.router import router as assignments_router
 from logica.modules.content.router import router as content_router
 from logica.modules.evaluations.router import router as evaluations_router
 from logica.modules.exercises.router import router as exercises_router
 from logica.modules.groups.router import router as groups_router
 from logica.modules.guides.router import router as guides_router
+from logica.modules.notifications.router import router as notifications_router
 from logica.modules.observability.models import truncate_message, truncate_stacktrace
 from logica.modules.observability.router import router as observability_router
 from logica.modules.observability.service import best_effort_actor
@@ -78,6 +82,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    configure_logging(log_level=settings.log_level)
     app = FastAPI(
         title="CodeMentor API",
         description=(
@@ -97,16 +102,25 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware)
 
     # RE-08 hardening: límites de tasa en endpoints de auth (solo ENV=prod,
-    # ver core/rate_limit.py). El handler propio mantiene el mismo formato
-    # {"detail": "..."} que el resto de errores de la API.
+    # ver core/rate_limit.py).
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
+
+    # Añadido último para quedar como middleware más externo (Starlette envuelve
+    # en orden inverso de registro): el request_id debe existir antes que
+    # cualquier otro middleware/handler pueda necesitarlo.
+    app.add_middleware(RequestIdMiddleware)
 
     @app.exception_handler(RateLimitExceeded)
     async def handle_rate_limit(request: Request, exc: RateLimitExceeded) -> JSONResponse:
         return JSONResponse(
             status_code=429,
-            content={"detail": "Demasiados intentos. Intenta de nuevo en unos minutos."},
+            content={
+                "code": "rate_limited",
+                "message": "Demasiados intentos. Intenta de nuevo en unos minutos.",
+                "hint": None,
+                "request_id": getattr(request.state, "request_id", None),
+            },
         )
 
     # General HTTP metrics (§4.4/§9.4 "observabilidad"): request count/latency
@@ -130,6 +144,7 @@ def create_app() -> FastAPI:
             "exception_type": type(exc).__name__,
             "message": truncate_message(str(exc)),
             "stacktrace": truncate_stacktrace(stacktrace),
+            "request_id": getattr(request.state, "request_id", None),
         }
         try:
             await request.app.state.arq_pool.enqueue_job("record_error_log_job", payload)
@@ -163,7 +178,15 @@ def create_app() -> FastAPI:
                 if provider_errors
                 else traceback.format_exc(),
             )
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "code": exc.code.value,
+                "message": exc.message,
+                "hint": exc.hint,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
 
     # Fase 13: los LogicaError arriba son errores de dominio esperados y ya
     # tienen su propio manejador — FastAPI despacha por especificidad de
@@ -176,7 +199,15 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
         await _record_incident(request, exc, status_code=500, stacktrace=traceback.format_exc())
-        return JSONResponse(status_code=500, content={"detail": "Error interno del servidor."})
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": "internal_error",
+                "message": "Error interno del servidor.",
+                "hint": None,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
 
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:
@@ -207,7 +238,9 @@ def create_app() -> FastAPI:
     app.include_router(progress_router)
     app.include_router(reports_router)
     app.include_router(rubrics_router)
+    app.include_router(assignments_router)
     app.include_router(observability_router)
+    app.include_router(notifications_router)
 
     return app
 

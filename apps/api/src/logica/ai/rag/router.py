@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Form, UploadFile
+from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +8,7 @@ from logica.ai.rag import service
 from logica.ai.rag.models import RagChunk
 from logica.ai.rag.schemas import RagDocumentOut
 from logica.core.errors import ValidationDomainError
+from logica.core.rate_limit import user_limiter
 from logica.core.security import get_current_user
 from logica.db import get_db
 from logica.modules.users.models import User
@@ -18,7 +19,9 @@ _ALLOWED_EXTENSIONS = (".md", ".txt")
 
 
 @router.post("/documents", response_model=RagDocumentOut, status_code=201)
+@user_limiter.limit("20/minute")
 async def upload_rag_document(
+    request: Request,
     file: UploadFile,
     title: str = Form(...),
     topic_id: uuid.UUID | None = Form(default=None),
@@ -27,13 +30,19 @@ async def upload_rag_document(
 ) -> RagDocumentOut:
     filename = file.filename or ""
     if not filename.lower().endswith(_ALLOWED_EXTENSIONS):
-        raise ValidationDomainError("Solo se aceptan archivos .md o .txt")
+        raise ValidationDomainError(
+            "Formato de archivo no soportado",
+            hint="Solo se aceptan archivos .md o .txt.",
+        )
 
     raw = await file.read()
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise ValidationDomainError("El archivo debe estar codificado en UTF-8") from exc
+        raise ValidationDomainError(
+            "No se pudo leer el archivo",
+            hint="Guárdalo con codificación UTF-8 y vuelve a intentarlo.",
+        ) from exc
 
     document = await service.create_rag_document(
         db, user, title=title, text=text, topic_id=topic_id

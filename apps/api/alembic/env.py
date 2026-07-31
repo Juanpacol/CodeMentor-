@@ -19,6 +19,7 @@ from logica.ai.rag.models import RagChunk, RagDocument  # noqa: F401
 from logica.config import get_settings
 from logica.core.audit import AuditLog  # noqa: F401
 from logica.db import Base
+from logica.modules.assignments.models import Assignment  # noqa: F401
 from logica.modules.content.models import Language, Topic, TopicGroupState  # noqa: F401
 from logica.modules.evaluations.models import (  # noqa: F401
     Evaluation,
@@ -27,13 +28,18 @@ from logica.modules.evaluations.models import (  # noqa: F401
     EvaluationExercise,
     PracticeSubmission,
 )
-from logica.modules.exercises.models import Exercise, TopicExercise  # noqa: F401
+from logica.modules.exercises.models import (  # noqa: F401
+    Exercise,
+    ExerciseVersion,
+    TopicExercise,
+)
 from logica.modules.groups.models import Group, GroupMembership  # noqa: F401
 from logica.modules.guides.models import (  # noqa: F401
     Guide,
     GuidesFolder,
     GuideTemplate,
 )
+from logica.modules.notifications.models import Notification  # noqa: F401
 from logica.modules.observability.models import ErrorLog  # noqa: F401
 from logica.modules.progress.models import (  # noqa: F401
     AcademicPeriod,

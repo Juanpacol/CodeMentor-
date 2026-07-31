@@ -6,6 +6,7 @@ import { cn } from '../../lib/cn'
 import { useAuth } from '../../hooks/useAuth'
 import { Button } from '../ui/Button'
 import { ThemeToggle } from '../ui/ThemeToggle'
+import { NotificationBell } from './NotificationBell'
 
 interface NavItem {
   to: string
@@ -31,8 +32,9 @@ function SidebarContent({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () =
   const { user, logout } = useAuth()
   return (
     <>
-      <div className="mb-6 px-2">
+      <div className="mb-6 flex items-center justify-between px-2">
         <span className="font-mono text-lg font-semibold text-ink">CodeMentor</span>
+        <NotificationBell />
       </div>
       <nav className="flex flex-1 flex-col gap-1">
         {nav.map((item) => (
@@ -80,21 +82,24 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print flex items-center justify-between border-b border-hairline bg-surface px-4 py-3 md:hidden">
           <span className="font-mono text-lg font-semibold text-ink">CodeMentor</span>
-          <button
-            aria-label="Abrir menú"
-            aria-expanded={mobileNavOpen}
-            onClick={() => setMobileNavOpen(true)}
-            className="rounded-btn p-2 text-ink hover:bg-hover"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path
-                d="M3 5h14M3 10h14M3 15h14"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <button
+              aria-label="Abrir menú"
+              aria-expanded={mobileNavOpen}
+              onClick={() => setMobileNavOpen(true)}
+              className="rounded-btn p-2 text-ink hover:bg-hover"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path
+                  d="M3 5h14M3 10h14M3 15h14"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8">

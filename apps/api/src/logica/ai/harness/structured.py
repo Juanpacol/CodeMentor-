@@ -19,12 +19,12 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.ai.harness.harness import complete_task
-from logica.core.errors import ValidationDomainError
+from logica.core.errors import ErrorCode, ValidationDomainError
 from logica.modules.users.models import User
 
 
 class StructuredOutputError(ValidationDomainError):
-    pass
+    code = ErrorCode.ai_invalid_output
 
 
 def _extract_json(text: str) -> str:
@@ -86,5 +86,8 @@ async def complete_structured[T: BaseModel](
 
     raise StructuredOutputError(
         f"El modelo no produjo una salida válida para la tarea '{task}' "
-        f"tras {max_retries + 1} intentos."
+        f"tras {max_retries + 1} intentos.",
+        # Qué tenía de malo la última respuesta es justo lo que permite decidir
+        # si el prompt necesita otra versión o si fue un mal día del modelo.
+        details={"task": task, "attempts": max_retries + 1, "last_error": last_error_message},
     )

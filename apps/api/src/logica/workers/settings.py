@@ -15,6 +15,8 @@ from logica.ai.agents.exercise_generator import generate_exercises_for_guide
 from logica.ai.agents.guide_writer import write_guide
 from logica.ai.agents.models import AgentName
 from logica.config import get_settings
+from logica.core.cancellation import clear_cancel, is_cancelled
+from logica.core.logging import configure_logging
 from logica.db import get_session_factory
 from logica.modules.content.models import TopicGroupStateValue
 from logica.modules.content.repository import get_topic, list_topic_group_states_for_group
@@ -78,10 +80,19 @@ async def generate_guide_job(ctx: dict[str, Any], guide_id: str) -> None:
     `guide_id` viaja como str porque arq serializa los argumentos del job."""
     session_factory = get_session_factory()
     redis = Redis.from_url(get_settings().redis_url, decode_responses=True)
+    guide_uuid = uuid.UUID(guide_id)
     try:
         async with session_factory() as db:
-            await write_guide(db, redis, guide_id=uuid.UUID(guide_id))
+            await write_guide(
+                db,
+                redis,
+                guide_id=guide_uuid,
+                # Una guía suelta se cancela por sí misma; dentro de una rúbrica
+                # el runner pasa la señal de la corrida entera.
+                should_cancel=lambda: is_cancelled(redis, "guide", guide_uuid),
+            )
             await db.commit()
+        await clear_cancel(redis, "guide", guide_uuid)
     finally:
         await redis.aclose()
     logger.info("guide_job_finished", guide_id=guide_id)
@@ -254,6 +265,7 @@ async def record_error_log_job(ctx: dict[str, Any], payload: dict[str, Any]) -> 
             exception_type=payload["exception_type"],
             message=payload["message"],
             stacktrace=payload["stacktrace"],
+            request_id=payload.get("request_id"),
         )
         await db.commit()
 
@@ -304,7 +316,7 @@ cron_jobs = [
 
 
 async def startup(ctx: dict[str, Any]) -> None:
-    pass
+    configure_logging(log_level=get_settings().log_level)
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:

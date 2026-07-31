@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logica.modules.exercises.models import Exercise, TopicExercise
+from logica.modules.exercises.models import Exercise, ExerciseVersion, TopicExercise
 
 
 async def get_exercise(db: AsyncSession, exercise_id: uuid.UUID) -> Exercise | None:
@@ -41,3 +41,33 @@ async def list_topic_ids_for_exercise(db: AsyncSession, exercise_id: uuid.UUID) 
     stmt = select(TopicExercise.topic_id).where(TopicExercise.exercise_id == exercise_id)
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def create_exercise_version(
+    db: AsyncSession, exercise: Exercise, *, created_by_id: uuid.UUID | None
+) -> ExerciseVersion:
+    snapshot = ExerciseVersion(
+        institution_id=exercise.institution_id,
+        exercise_id=exercise.id,
+        version=exercise.version,
+        title=exercise.title,
+        content=exercise.content,
+        created_by_id=created_by_id,
+    )
+    db.add(snapshot)
+    await db.flush()
+    return snapshot
+
+
+async def list_exercise_versions(db: AsyncSession, exercise_id: uuid.UUID) -> list[ExerciseVersion]:
+    stmt = (
+        select(ExerciseVersion)
+        .where(ExerciseVersion.exercise_id == exercise_id)
+        .order_by(ExerciseVersion.version.desc())
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def get_exercise_version(db: AsyncSession, version_id: uuid.UUID) -> ExerciseVersion | None:
+    return await db.get(ExerciseVersion, version_id)

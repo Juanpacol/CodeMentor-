@@ -9,11 +9,31 @@ export const qk = {
   groupEvaluations: (groupId: string) => ['group-evaluations', groupId] as const,
   languages: ['languages'] as const,
   topics: (languageId?: string) => ['topics', languageId ?? 'all'] as const,
-  practice: (groupId: string) => ['practice', groupId] as const,
+  practice: (
+    groupId: string,
+    filters: { topicId?: string; status?: string; mastery?: string } = {},
+  ) =>
+    [
+      'practice',
+      groupId,
+      filters.topicId ?? 'all',
+      filters.status ?? 'all',
+      filters.mastery ?? 'all',
+    ] as const,
+  practiceHistory: (exerciseId: string) => ['practice-history', exerciseId] as const,
+  exerciseVersions: (exerciseId: string) => ['exercise-versions', exerciseId] as const,
+  assignments: {
+    me: ['assignments', 'me'] as const,
+    forGroup: (groupId: string) => ['assignments', 'group', groupId] as const,
+  },
   progress: {
     me: ['progress', 'me'] as const,
+    myActivity: ['progress', 'me', 'activity'] as const,
+    today: ['progress', 'me', 'today'] as const,
+    timeline: ['progress', 'me', 'timeline'] as const,
     lagging: (groupId: string) => ['progress', 'lagging', groupId] as const,
   },
+  notifications: ['notifications'] as const,
   exercises: (filters: { languageId?: string; topicId?: string } = {}) =>
     ['exercises', filters.languageId ?? 'all', filters.topicId ?? 'all'] as const,
   evaluation: {
@@ -49,6 +69,7 @@ export const qk = {
   observability: {
     errors: (filters: { statusCode?: number; path?: string; page: number }) =>
       ['observability', 'errors', filters.statusCode ?? 'all', filters.path ?? '', filters.page] as const,
+    errorsSummary: ['observability', 'errors-summary'] as const,
     audit: (filters: { action?: string; page: number }) =>
       ['observability', 'audit', filters.action ?? '', filters.page] as const,
     aiUsage: (groupBy: string) => ['observability', 'ai-usage', groupBy] as const,

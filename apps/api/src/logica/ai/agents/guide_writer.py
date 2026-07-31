@@ -8,6 +8,7 @@ Corre en el worker de arq, nunca en el request path: son N llamadas al modelo
 """
 
 import uuid
+from collections.abc import Awaitable, Callable
 
 import structlog
 from pydantic import BaseModel, Field
@@ -63,8 +64,29 @@ def _assemble_markdown(written: list[GuideSectionOutput]) -> str:
     return "\n\n".join(f"## {section.heading}\n\n{section.body_md}" for section in written)
 
 
-async def write_guide(db: AsyncSession, redis: Redis, *, guide_id: uuid.UUID) -> Guide:
+class GuideCancelled(Exception):
+    """El trabajo se abandonó por petición del usuario, no por un fallo.
+
+    No hereda de `LogicaError` a propósito: no es un error de dominio que deba
+    llegar al cliente como 4xx/5xx, y mezclarlo con ellos haría que el `except
+    LogicaError` de abajo lo marcara como guía fallida.
+    """
+
+
+async def write_guide(
+    db: AsyncSession,
+    redis: Redis,
+    *,
+    guide_id: uuid.UUID,
+    should_cancel: Callable[[], Awaitable[bool]] | None = None,
+) -> Guide:
     """Rellena una `Guide` que ya existe en `status=generating`.
+
+    `should_cancel` se consulta entre secciones. Es un callable y no un id
+    porque quien cancela cambia según el contexto: en una rúbrica se cancela la
+    corrida entera, y en una guía suelta, esa guía. Sin esto, cancelar durante
+    la etapa más larga (una llamada al modelo por sección) no se notaba hasta
+    que todas terminaban.
 
     No recibe un `User` de la petición porque corre en el worker: el docente
     responsable es `guide.created_by_id`, y es su presupuesto y su rastro de
@@ -77,12 +99,22 @@ async def write_guide(db: AsyncSession, redis: Redis, *, guide_id: uuid.UUID) ->
         raise NotFoundError("Guía no encontrada")
 
     try:
-        written, sources, last_error = await _write_all_sections(db, redis, guide)
+        written, sources, last_error = await _write_all_sections(
+            db, redis, guide, should_cancel=should_cancel
+        )
+    except GuideCancelled:
+        # Se conserva lo que alcanzó a escribirse: `cancelled` con contenido
+        # parcial le sirve más al docente que descartar el trabajo entero.
+        await repository.mark_guide_cancelled(db, guide)
+        logger.info("guide_generation_cancelled", guide_id=str(guide_id))
+        return guide
     except LogicaError as exc:
         # Un fallo que no es de una sección puntual (agente apagado, tema
         # borrado, docente inexistente): la guía entera no procede.
         logger.warning("guide_generation_aborted", guide_id=str(guide_id), error=str(exc))
-        await repository.mark_guide_failed(db, guide, exc.message)
+        await repository.mark_guide_failed(
+            db, guide, exc.message, error_code=exc.code, error_details=exc.details
+        )
         return guide
 
     if not written:
@@ -90,7 +122,13 @@ async def write_guide(db: AsyncSession, redis: Redis, *, guide_id: uuid.UUID) ->
         # "alcanzaste el límite diario" o "la IA no está disponible" le dicen al
         # docente qué hacer, "el modelo no pudo redactar" no.
         await repository.mark_guide_failed(
-            db, guide, last_error or "El modelo no pudo redactar ninguna sección de la guía."
+            db,
+            guide,
+            last_error.message
+            if last_error
+            else "El modelo no pudo redactar ninguna sección de la guía.",
+            error_code=last_error.code if last_error else None,
+            error_details=last_error.details if last_error else None,
         )
         logger.warning("guide_generation_all_sections_failed", guide_id=str(guide_id))
         return guide
@@ -112,8 +150,12 @@ async def write_guide(db: AsyncSession, redis: Redis, *, guide_id: uuid.UUID) ->
 
 
 async def _write_all_sections(
-    db: AsyncSession, redis: Redis, guide: Guide
-) -> tuple[list[GuideSectionOutput], set[str], str | None]:
+    db: AsyncSession,
+    redis: Redis,
+    guide: Guide,
+    *,
+    should_cancel: Callable[[], Awaitable[bool]] | None = None,
+) -> tuple[list[GuideSectionOutput], set[str], LogicaError | None]:
     folder = await db.get(GuidesFolder, guide.folder_id)
     if folder is None:
         raise NotFoundError("Carpeta de guías no encontrada")
@@ -138,10 +180,16 @@ async def _write_all_sections(
 
     written: list[GuideSectionOutput] = []
     sources: set[str] = set()
-    last_error: str | None = None
+    # La excepción entera y no solo su `.message`: quien la persiste necesita
+    # también el `code` y el `details` (qué proveedor falló, qué JSON no validó).
+    last_error: LogicaError | None = None
 
     for section in template.sections:
         heading = section["heading"]
+        # Antes de gastar otra llamada al modelo, no después: es lo que hace que
+        # cancelar se sienta inmediato en vez de tardar lo que quede de guía.
+        if should_cancel is not None and await should_cancel():
+            raise GuideCancelled
         # Sin `db.begin_nested()` a propósito, aunque este sea un bucle que
         # escribe a la BD (la regla de CLAUDE.md). El SAVEPOINT hace falta cuando
         # una *sentencia* puede fallar y abortar la transacción abierta; acá todo
@@ -187,7 +235,7 @@ async def _write_all_sections(
                 section_heading=heading,
                 error=str(exc),
             )
-            last_error = exc.message
+            last_error = exc
             break
         except LogicaError as exc:
             # Aislamiento por ítem: una sección que falla no invalida la guía.
@@ -200,7 +248,7 @@ async def _write_all_sections(
                 section_heading=heading,
                 error=str(exc),
             )
-            last_error = exc.message
+            last_error = exc
             continue
 
         written.append(output)

@@ -15,6 +15,7 @@ from logica.modules.observability.schemas import (
     AuditLogPageOut,
     ErrorLogOut,
     ErrorLogPageOut,
+    ErrorSummaryRowOut,
 )
 from logica.modules.users.models import User
 
@@ -50,6 +51,17 @@ async def list_errors(
         page=page_info.page,
         page_size=page_info.page_size,
     )
+
+
+@router.get("/errors/summary", response_model=list[ErrorSummaryRowOut])
+async def summarize_errors(
+    date_from: date | None = None,
+    date_to: date | None = None,
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+) -> list[ErrorSummaryRowOut]:
+    rows = await service.summarize_errors_for_user(db, user, date_from=date_from, date_to=date_to)
+    return [ErrorSummaryRowOut.model_validate(row, from_attributes=True) for row in rows]
 
 
 @router.get("/audit", response_model=AuditLogPageOut)

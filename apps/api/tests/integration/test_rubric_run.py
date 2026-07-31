@@ -319,6 +319,45 @@ async def test_presupuesto_agotado_a_mitad_deja_la_corrida_parcial(
     assert estados[2] == RubricItemStatus.pending.value
 
 
+async def test_cancelar_detiene_la_corrida_dentro_del_tema_en_curso(
+    client: AsyncClient,
+    institution: Institution,
+    redis_client: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Antes la señal solo se miraba ENTRE temas, y como un tema son ~7 llamadas
+    al modelo, cancelar tardaba minutos en notarse y parecía no funcionar. Este
+    test cancela desde dentro del primer tema: si el corte solo ocurriera entre
+    temas, el primero terminaría `done` y el segundo se procesaría igual."""
+    _stub_model(monkeypatch)
+    _stub_acquisition(monkeypatch)
+    ctx = await _setup(client, institution)
+    run, _ = await _post_run(client, ctx, ["Tema uno", "Tema dos"])
+
+    # Cancelar en mitad del primer tema: en cuanto empieza a redactarse la guía.
+    real_write = __import__("logica.modules.rubrics.runner", fromlist=["write_guide"]).write_guide
+
+    async def cancelar_y_seguir(*args: Any, **kwargs: Any) -> Any:
+        await client.post(f"/rubric-runs/{run['id']}/cancel", headers=auth_headers(ctx["access"]))
+        return await real_write(*args, **kwargs)
+
+    monkeypatch.setattr("logica.modules.rubrics.runner.write_guide", cancelar_y_seguir)
+
+    await _execute(run["id"], redis_client)
+
+    body = (
+        await client.get(f"/rubric-runs/{run['id']}", headers=auth_headers(ctx["access"]))
+    ).json()
+    # `cancelled` y no `failed`: cancelar es una decisión del docente, no un
+    # incidente de la plataforma.
+    assert body["run"]["status"] == RubricRunStatus.cancelled.value
+
+    estados = [item["status"] for item in body["items"]]
+    assert estados[0] == RubricItemStatus.cancelled.value
+    # El segundo ni se intentó: el corte fue dentro del primero, no después.
+    assert estados[1] == RubricItemStatus.pending.value
+
+
 async def test_un_docente_ajeno_no_ve_la_corrida(
     client: AsyncClient, institution: Institution
 ) -> None:

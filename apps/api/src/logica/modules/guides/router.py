@@ -1,9 +1,11 @@
 import uuid
 
 from fastapi import APIRouter, Depends
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logica.core.permissions import require_role
+from logica.core.permissions import require_permission
+from logica.core.redis_dep import get_redis
 from logica.core.security import get_current_user
 from logica.db import get_db
 from logica.modules.guides import service
@@ -21,7 +23,7 @@ from logica.modules.users.models import User
 
 router = APIRouter(tags=["guides"])
 
-RequireTeacher = require_role("teacher", "admin")
+RequireTeacher = require_permission("guides:manage")
 
 
 @router.post("/groups/{group_id}/guide-folders", response_model=GuidesFolderOut, status_code=201)
@@ -141,6 +143,20 @@ async def publish_guide(
     db: AsyncSession = Depends(get_db),
 ) -> Guide:
     guide = await service.publish_guide(db, user, guide_id)
+    await db.commit()
+    return guide
+
+
+@router.post("/guides/{guide_id}/cancel", response_model=GuideOut)
+async def cancel_guide(
+    guide_id: uuid.UUID,
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> Guide:
+    """Detiene una guía atascada en `generating`, que antes no tenía salida:
+    `archive` la rechaza en ese estado y el worker podía no volver nunca."""
+    guide = await service.cancel_guide(db, redis, user, guide_id)
     await db.commit()
     return guide
 

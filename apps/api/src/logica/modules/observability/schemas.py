@@ -15,6 +15,7 @@ class ErrorLogOut(BaseModel):
     exception_type: str
     message: str
     stacktrace: str | None
+    request_id: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -30,6 +31,13 @@ class AuditLogOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ErrorSummaryRowOut(BaseModel):
+    exception_type: str
+    count: int
+    last_seen: datetime
+    sample_message: str
 
 
 class ErrorLogPageOut(BaseModel):

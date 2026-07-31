@@ -27,6 +27,24 @@ function ManualReviewRow({ evaluationId, answerId, exerciseTitle, answer }: {
     null,
   )
   const [aiUnavailable, setAiUnavailable] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const [feedbackUnavailable, setFeedbackUnavailable] = useState(false)
+
+  const generateFeedback = useMutation({
+    mutationFn: () =>
+      unwrap(
+        apiClient.POST('/evaluations/{evaluation_id}/answers/{answer_id}/feedback', {
+          params: { path: { evaluation_id: evaluationId, answer_id: answerId } },
+        }),
+      ),
+    onSuccess: (data) => {
+      setFeedbackUnavailable(false)
+      setFeedback(data.ai_generated_feedback)
+    },
+    onError: (err) => {
+      if (isAiUnavailable(err)) setFeedbackUnavailable(true)
+    },
+  })
 
   const suggest = useMutation({
     mutationFn: () =>
@@ -111,6 +129,27 @@ function ManualReviewRow({ evaluationId, answerId, exerciseTitle, answer }: {
         <Button disabled={!score || confirm.isPending} onClick={() => confirm.mutate()}>
           Confirmar nota
         </Button>
+      </div>
+
+      <div className="mt-4 border-t border-hairline pt-4">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={generateFeedback.isPending}
+          onClick={() => generateFeedback.mutate()}
+        >
+          {generateFeedback.isPending ? 'Generando...' : '✨ Generar feedback con IA'}
+        </Button>
+        {feedbackUnavailable && (
+          <Callout tone="ai" className="mt-3">
+            El asistente de IA no está disponible en este momento.
+          </Callout>
+        )}
+        {feedback && (
+          <Callout tone="ai" className="mt-3">
+            {feedback}
+          </Callout>
+        )}
       </div>
     </Card>
   )

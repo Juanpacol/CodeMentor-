@@ -5,20 +5,26 @@ inmediata — que es la señal más fiel de dominio continuo; las evaluaciones
 "dominio por tema/lenguaje"."""
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.core.errors import PermissionDeniedError
+from logica.modules.assignments.service import list_my_assignments
 from logica.modules.exercises.models import Exercise
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.progress import repository
 from logica.modules.progress.models import AcademicPeriod, Badge, BadgeCriteria, StudentBadge
 from logica.modules.progress.schemas import (
     BadgeOut,
+    DailyActivityOut,
     LaggingStudentOut,
     LanguageMasteryOut,
+    StudentActivityOut,
     StudentProgressOut,
+    TimelineEventOut,
+    TodaySummaryOut,
     TopicMasteryOut,
 )
 from logica.modules.users.models import Role, User
@@ -169,17 +175,120 @@ async def evaluate_and_award_badges(
     return awarded
 
 
-async def get_student_progress(db: AsyncSession, student: User) -> StudentProgressOut:
-    practice_total, practice_correct = await repository.count_correct_practice(db, student.id)
-    evaluation_points = await repository.sum_submitted_evaluation_scores(db, student.id)
-    # RF-29: gamification points, not a grading metric — 1 per correct
-    # practice submission, plus 10x the accumulated evaluation score (formal
-    # assessments count for more than free practice).
-    points = practice_correct + round(evaluation_points * 10)
+def _streaks(active_days: set[date], today: date) -> tuple[int, int]:
+    """(racha actual, racha máxima) en días consecutivos con actividad.
 
-    badge_rows = await repository.list_student_badges(db, student.id)
+    La racha actual cuenta hacia atrás desde hoy y **tolera que hoy esté
+    vacío**: a las 9 a.m. todavía no practicaste, y decirle a alguien que
+    perdió su racha de 20 días por eso lo castiga por la hora en que abre la
+    página. Se rompe solo cuando ayer tampoco hubo actividad.
+    """
+    if not active_days:
+        return 0, 0
+
+    current = 0
+    cursor = today if today in active_days else today - timedelta(days=1)
+    while cursor in active_days:
+        current += 1
+        cursor -= timedelta(days=1)
+
+    longest = 0
+    run = 0
+    previous: date | None = None
+    for day in sorted(active_days):
+        run = run + 1 if previous is not None and day - previous == timedelta(days=1) else 1
+        longest = max(longest, run)
+        previous = day
+
+    return current, longest
+
+
+async def get_student_activity(
+    db: AsyncSession, student: User, *, days: int, tz_name: str
+) -> StudentActivityOut:
+    """Serie diaria + rachas + conexiones: el "perfil" del estudiante.
+
+    Todo se deriva de datos que ya existen (`practice_submissions.created_at` y
+    `audit_logs`), sin tablas nuevas.
+    """
+    now = datetime.now(UTC)
+    rows = await repository.daily_practice_activity(
+        db, student.id, since=now - timedelta(days=days), tz_name=tz_name
+    )
+
+    try:
+        today = now.astimezone(ZoneInfo(tz_name)).date()
+    except ZoneInfoNotFoundError:
+        # Zona desconocida (cliente con un tz raro o datos de zona ausentes en
+        # la imagen): la serie ya viene agrupada por Postgres, así que degradar
+        # a UTC solo desplaza el "hoy" de las rachas, no rompe la respuesta.
+        today = now.date()
+
+    active_days = {day for day, submissions, _ in rows if submissions > 0}
+    current_streak, longest_streak = _streaks(active_days, today)
+
+    return StudentActivityOut(
+        days=[
+            DailyActivityOut(date=day, submissions=submissions, correct=correct)
+            for day, submissions, correct in rows
+        ],
+        current_streak=current_streak,
+        longest_streak=longest_streak,
+        active_days=len(active_days),
+        total_submissions=sum(submissions for _, submissions, _ in rows),
+        logins=await repository.count_logins(db, student.id),
+    )
+
+
+async def get_today_summary(db: AsyncSession, student: User, *, tz_name: str) -> TodaySummaryOut:
+    """ "Mi progreso hoy": reusa `get_student_activity` (misma racha, mismo
+    derivado de `practice_submissions`) en vez de una consulta nueva de un
+    solo día — la racha necesita el historial completo para calcularse, no
+    solo la ventana de hoy."""
+    activity = await get_student_activity(db, student, days=365, tz_name=tz_name)
+
+    now = datetime.now(UTC)
+    try:
+        today = now.astimezone(ZoneInfo(tz_name)).date()
+    except ZoneInfoNotFoundError:
+        today = now.date()
+
+    today_row = next((d for d in activity.days if d.date == today), None)
+    submissions = today_row.submissions if today_row else 0
+    correct = today_row.correct if today_row else 0
+
+    badge_rows = [
+        b
+        for b in await repository.list_student_badges(db, student.id)
+        if b.earned_at.astimezone(UTC).date() == today
+    ]
     badges_by_id = {b.id: b for b in await repository.list_badges(db, student.institution_id)}
-    badges = [
+    badges_earned_today = _build_badge_outs(badge_rows, badges_by_id)
+
+    assignments = await list_my_assignments(db, student)
+    due_today = sum(
+        1 for a in assignments if not a.done and a.due_at is not None and a.due_at.date() == today
+    )
+    due_tomorrow = sum(
+        1
+        for a in assignments
+        if not a.done and a.due_at is not None and a.due_at.date() == today + timedelta(days=1)
+    )
+
+    return TodaySummaryOut(
+        submissions=submissions,
+        correct=correct,
+        current_streak=activity.current_streak,
+        badges_earned_today=badges_earned_today,
+        due_today=due_today,
+        due_tomorrow=due_tomorrow,
+    )
+
+
+def _build_badge_outs(
+    badge_rows: list[StudentBadge], badges_by_id: dict[uuid.UUID, Badge]
+) -> list[BadgeOut]:
+    return [
         BadgeOut(
             id=row.badge_id,
             slug=badges_by_id[row.badge_id].slug,
@@ -193,6 +302,19 @@ async def get_student_progress(db: AsyncSession, student: User) -> StudentProgre
         for row in badge_rows
         if row.badge_id in badges_by_id
     ]
+
+
+async def get_student_progress(db: AsyncSession, student: User) -> StudentProgressOut:
+    practice_total, practice_correct = await repository.count_correct_practice(db, student.id)
+    evaluation_points = await repository.sum_submitted_evaluation_scores(db, student.id)
+    # RF-29: gamification points, not a grading metric — 1 per correct
+    # practice submission, plus 10x the accumulated evaluation score (formal
+    # assessments count for more than free practice).
+    points = practice_correct + round(evaluation_points * 10)
+
+    badge_rows = await repository.list_student_badges(db, student.id)
+    badges_by_id = {b.id: b for b in await repository.list_badges(db, student.institution_id)}
+    badges = _build_badge_outs(badge_rows, badges_by_id)
 
     topic_mastery = [
         TopicMasteryOut(
@@ -226,40 +348,107 @@ async def get_student_progress(db: AsyncSession, student: User) -> StudentProgre
     )
 
 
+async def get_student_timeline(
+    db: AsyncSession, student: User, *, limit: int
+) -> list[TimelineEventOut]:
+    """Feed cronológico (ítem 6): fusiona 3 fuentes ya existentes en Python en
+    vez de un `UNION` SQL — cada fuente ya trae como mucho `limit` filas, así
+    que ordenar la unión en memoria es más simple que un UNION tipado entre
+    tres tablas con columnas distintas."""
+    submissions, badges, attempts = (
+        await repository.recent_practice_submissions(db, student.id, limit),
+        await repository.recent_student_badges(db, student.id, limit),
+        await repository.recent_evaluation_attempts(db, student.id, limit),
+    )
+
+    events = [
+        TimelineEventOut(
+            kind="practice",
+            title=title,
+            detail="Correcto" if submission.correct else "Incorrecto",
+            occurred_at=submission.created_at,
+        )
+        for submission, title in submissions
+    ]
+    events += [
+        TimelineEventOut(
+            kind="badge",
+            title=name,
+            detail="Insignia ganada",
+            occurred_at=badge.earned_at,
+        )
+        for badge, name in badges
+    ]
+    events += [
+        TimelineEventOut(
+            kind="evaluation",
+            title=title,
+            detail=(
+                f"Puntaje: {attempt.total_score:.1f}"
+                if attempt.total_score is not None
+                else "Entregada"
+            ),
+            occurred_at=attempt.submitted_at,
+        )
+        for attempt, title in attempts
+        if attempt.submitted_at is not None
+    ]
+
+    events.sort(key=lambda e: e.occurred_at, reverse=True)
+    return events[:limit]
+
+
+async def lagging_reason_for_student(
+    db: AsyncSession,
+    group_id: uuid.UUID,
+    student_id: uuid.UUID,
+    *,
+    topic_id: uuid.UUID | None = None,
+) -> tuple[str | None, float | None, int | None]:
+    """(reason, accuracy, days_since_last_activity) — sin chequeo de permisos,
+    pensado para reusarse desde un job en background (reportes) además del
+    endpoint de docente. `reason` es `None` si el estudiante no está rezagado."""
+    total, correct, last_at = await repository.practice_accuracy_and_last_activity_in_group(
+        db, group_id, student_id, topic_id=topic_id
+    )
+    accuracy = _accuracy(total, correct)
+    now = datetime.now(UTC)
+    days_since = None
+    if last_at is not None:
+        last_at_aware = last_at if last_at.tzinfo else last_at.replace(tzinfo=UTC)
+        days_since = (now - last_at_aware).days
+
+    reason = None
+    if last_at is None or (days_since is not None and days_since >= _LAG_INACTIVITY_DAYS):
+        reason = f"Sin práctica en los últimos {_LAG_INACTIVITY_DAYS} días o más"
+    elif (
+        total >= _LAG_MIN_SUBMISSIONS
+        and accuracy is not None
+        and (accuracy < _LAG_ACCURACY_THRESHOLD)
+    ):
+        reason = f"Precisión de práctica por debajo de {int(_LAG_ACCURACY_THRESHOLD * 100)}%"
+
+    return reason, accuracy, days_since
+
+
 async def get_lagging_students(
-    db: AsyncSession, teacher: User, group_id: uuid.UUID
+    db: AsyncSession, teacher: User, group_id: uuid.UUID, *, topic_id: uuid.UUID | None = None
 ) -> list[LaggingStudentOut]:
     """RF-15: a rule-based check (accuracy or inactivity), not a judgment
     call left to an LLM — a teacher deserves a deterministic, explainable
     reason for why a student is flagged. Pairs naturally with the Learning
     Analytics agent's `summarize_group` (Fase 6) for a narrative summary of
-    the same underlying data."""
+    the same underlying data. `topic_id` narrows the check to one topic's
+    practice — a student can be fine overall but stuck on a single topic."""
     _, is_teacher_view = await get_group_with_access(db, teacher, group_id)
     if not is_teacher_view:
         raise PermissionDeniedError("Solo un docente o administrador puede ver esta vista")
 
     lagging: list[LaggingStudentOut] = []
-    now = datetime.now(UTC)
     for student_id in await repository.group_member_ids(db, group_id):
-        total, correct, last_at = await repository.practice_accuracy_and_last_activity_in_group(
-            db, group_id, student_id
+        reason, accuracy, days_since = await lagging_reason_for_student(
+            db, group_id, student_id, topic_id=topic_id
         )
-        accuracy = _accuracy(total, correct)
-        days_since = None
-        if last_at is not None:
-            last_at_aware = last_at if last_at.tzinfo else last_at.replace(tzinfo=UTC)
-            days_since = (now - last_at_aware).days
-
-        reason = None
-        if last_at is None or (days_since is not None and days_since >= _LAG_INACTIVITY_DAYS):
-            reason = f"Sin práctica en los últimos {_LAG_INACTIVITY_DAYS} días o más"
-        elif (
-            total >= _LAG_MIN_SUBMISSIONS
-            and accuracy is not None
-            and (accuracy < _LAG_ACCURACY_THRESHOLD)
-        ):
-            reason = f"Precisión de práctica por debajo de {int(_LAG_ACCURACY_THRESHOLD * 100)}%"
-
         if reason is None:
             continue
 
@@ -304,5 +493,6 @@ __all__ = [
     "evaluate_and_award_badges",
     "get_lagging_students",
     "get_student_progress",
+    "lagging_reason_for_student",
     "list_academic_periods",
 ]
