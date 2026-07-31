@@ -5,7 +5,7 @@ description = "API de Lógica>_ — plataforma de lógica de programación (PSeI
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "fastapi>=0.115",
+    "fastapi>=0.140.0",
     "uvicorn[standard]>=0.32",
     "pydantic[email]>=2.9",
     "pydantic-settings>=2.6",
