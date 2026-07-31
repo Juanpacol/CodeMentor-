@@ -15,7 +15,6 @@ from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logica.ai.agents.config_service import ensure_agent_enabled
 from logica.ai.agents.models import AgentName
 from logica.ai.harness.prompts import active_version
 from logica.ai.harness.structured import complete_structured
@@ -159,7 +158,6 @@ async def _write_all_sections(
     folder = await db.get(GuidesFolder, guide.folder_id)
     if folder is None:
         raise NotFoundError("Carpeta de guías no encontrada")
-    await ensure_agent_enabled(db, folder.group_id, AgentName.guide_writer)
 
     teacher = await db.get(User, guide.created_by_id)
     if teacher is None:

@@ -14,7 +14,6 @@ _SENSITIVE_FIELDS: dict[ExerciseType, tuple[str, ...]] = {
     ExerciseType.fill_code: ("blanks",),
     ExerciseType.find_error: ("error_line", "error_kind"),
     ExerciseType.trace_variables: ("expected_trace",),
-    ExerciseType.order_lines: ("correct_order",),
     ExerciseType.argued_response: (),
     ExerciseType.live_code: ("test_cases",),
 }

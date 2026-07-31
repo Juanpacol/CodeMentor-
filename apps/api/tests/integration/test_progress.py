@@ -1,5 +1,3 @@
-from datetime import date, timedelta
-
 from httpx import AsyncClient
 
 from logica.modules.users.models import Institution
@@ -273,41 +271,3 @@ async def test_lagging_students_forbidden_for_students(
     assert resp.status_code == 403
 
 
-async def test_academic_period_create_and_list(
-    client: AsyncClient, institution: Institution
-) -> None:
-    domain = institution.email_domains[0]
-    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
-    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
-
-    today = date.today()
-    resp = await client.post(
-        "/academic-periods",
-        json={
-            "name": "Periodo 1 - 2026",
-            "start_date": str(today - timedelta(days=30)),
-            "end_date": str(today + timedelta(days=30)),
-        },
-        headers=auth_headers(teacher_access),
-    )
-    assert resp.status_code == 201, resp.text
-    period = resp.json()
-    assert period["name"] == "Periodo 1 - 2026"
-
-    listed = await client.get("/academic-periods", headers=auth_headers(student_access))
-    assert listed.status_code == 200
-    assert any(p["id"] == period["id"] for p in listed.json())
-
-
-async def test_academic_period_create_forbidden_for_students(
-    client: AsyncClient, institution: Institution
-) -> None:
-    domain = institution.email_domains[0]
-    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
-
-    resp = await client.post(
-        "/academic-periods",
-        json={"name": "Periodo X", "start_date": "2026-01-01", "end_date": "2026-06-30"},
-        headers=auth_headers(student_access),
-    )
-    assert resp.status_code == 403

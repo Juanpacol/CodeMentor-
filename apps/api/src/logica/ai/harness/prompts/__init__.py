@@ -37,6 +37,7 @@ ACTIVE_PROMPT_VERSIONS: dict[str, int] = {
     "grading_suggestion": 1,
     "code_integrity": 1,
     "guide_generation": 1,
+    "rubric_topic_extraction": 1,
 }
 _DEFAULT_VERSION = 1
 

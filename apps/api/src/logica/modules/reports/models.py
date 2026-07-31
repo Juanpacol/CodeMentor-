@@ -35,9 +35,6 @@ class ReportJob(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
     group_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("groups.id"), nullable=False, index=True
     )
-    period_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("academic_periods.id"), nullable=True
-    )
     format: Mapped[ReportFormat] = mapped_column(
         Enum(ReportFormat, name="report_format"), nullable=False
     )

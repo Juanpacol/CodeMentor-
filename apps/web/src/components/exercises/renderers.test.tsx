@@ -6,7 +6,6 @@ import { ArguedResponseRenderer } from './ArguedResponseRenderer'
 import { FillCodeRenderer } from './FillCodeRenderer'
 import { FindErrorRenderer } from './FindErrorRenderer'
 import { MultipleChoiceRenderer } from './MultipleChoiceRenderer'
-import { OrderLinesRenderer } from './OrderLinesRenderer'
 import { TraceVariablesRenderer } from './TraceVariablesRenderer'
 import { TrueFalseRenderer } from './TrueFalseRenderer'
 
@@ -105,21 +104,6 @@ describe('TraceVariablesRenderer', () => {
     fireEvent.change(screen.getByPlaceholderText('variable'), { target: { value: 'contador' } })
     fireEvent.change(screen.getByPlaceholderText('valor'), { target: { value: '5' } })
     expect(onCommit).toHaveBeenLastCalledWith({ trace: [{ contador: 5 }] })
-  })
-})
-
-describe('OrderLinesRenderer', () => {
-  it('starts with the identity order over content.lines', () => {
-    const onChange = vi.fn()
-    render(
-      <OrderLinesRenderer
-        content={{ statement: 'Ordena', lines: ['def sumar(a, b):', '    return a + b'] }}
-        value={undefined}
-        onChange={onChange}
-      />,
-    )
-    expect(screen.getByText('def sumar(a, b):')).toBeInTheDocument()
-    expect(screen.getByText('return a + b')).toBeInTheDocument()
   })
 })
 

@@ -8,6 +8,8 @@ class AssignmentCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     topic_id: uuid.UUID | None = None
     exercise_id: uuid.UUID | None = None
+    evaluation_id: uuid.UUID | None = None
+    guide_id: uuid.UUID | None = None
     due_at: datetime | None = None
 
     @model_validator(mode="after")
@@ -15,8 +17,9 @@ class AssignmentCreateRequest(BaseModel):
         """Mismo invariante que el `CheckConstraint` de la tabla. Se valida acá
         también para que el docente reciba un 422 explicativo en vez del error de
         integridad crudo de Postgres."""
-        if (self.topic_id is None) == (self.exercise_id is None):
-            raise ValueError("Asigna un tema o un ejercicio, no ambos ni ninguno")
+        targets = [self.topic_id, self.exercise_id, self.evaluation_id, self.guide_id]
+        if sum(t is not None for t in targets) != 1:
+            raise ValueError("Asigna un tema, un ejercicio, un examen o un taller — solo uno")
         return self
 
 
@@ -34,6 +37,8 @@ class AssignmentOut(BaseModel):
     title: str
     topic_id: uuid.UUID | None
     exercise_id: uuid.UUID | None
+    evaluation_id: uuid.UUID | None
+    guide_id: uuid.UUID | None
     due_at: datetime | None
     created_at: datetime
 
@@ -54,6 +59,8 @@ class StudentAssignmentOut(BaseModel):
     title: str
     topic_id: uuid.UUID | None
     exercise_id: uuid.UUID | None
+    evaluation_id: uuid.UUID | None
+    guide_id: uuid.UUID | None
     due_at: datetime | None
     done: bool
     # Cuántos ejercicios cubre y cuántos van; para un ejercicio suelto es 1 y 0/1.

@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Import all module models here so Base.metadata is fully populated for autogenerate.
 from logica.ai.agents.models import (  # noqa: F401
-    AgentConfig,
     CodeIntegrityAlert,
     CurriculumPlan,
     CurriculumPlanItem,
@@ -41,11 +40,7 @@ from logica.modules.guides.models import (  # noqa: F401
 )
 from logica.modules.notifications.models import Notification  # noqa: F401
 from logica.modules.observability.models import ErrorLog  # noqa: F401
-from logica.modules.progress.models import (  # noqa: F401
-    AcademicPeriod,
-    Badge,
-    StudentBadge,
-)
+from logica.modules.progress.models import Badge, StudentBadge  # noqa: F401
 from logica.modules.reports.models import ReportJob  # noqa: F401
 from logica.modules.rubrics.models import RubricItem, RubricRun  # noqa: F401
 from logica.modules.users.models import Institution, PasswordResetToken, User  # noqa: F401

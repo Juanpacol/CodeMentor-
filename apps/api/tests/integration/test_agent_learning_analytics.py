@@ -75,30 +75,3 @@ async def test_summary_reflects_practice_activity(
     assert '"total_submissions": 3' in captured_vars["prompt"]
 
 
-async def test_learning_analytics_disabled_blocks_summary(
-    client: AsyncClient, institution: Institution, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    domain = institution.email_domains[0]
-    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
-    group = await create_group(client, teacher_access)
-
-    await client.put(
-        f"/ai/groups/{group['id']}/agents/summarize_group",
-        json={"enabled": False},
-        headers=auth_headers(teacher_access),
-    )
-
-    called = False
-
-    async def fake(task: str, messages: list[dict[str, str]]) -> CompletionResult:
-        nonlocal called
-        called = True
-        return CompletionResult(text="x", model="x", prompt_tokens=0, completion_tokens=0)
-
-    monkeypatch.setattr("logica.ai.harness.harness.router_complete", fake)
-
-    resp = await client.post(
-        f"/ai/groups/{group['id']}/analytics/summary", headers=auth_headers(teacher_access)
-    )
-    assert resp.status_code == 403
-    assert called is False

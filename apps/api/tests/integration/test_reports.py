@@ -165,19 +165,6 @@ async def test_xlsx_report_includes_lagging_status_column(
     assert data_row[-1].startswith("Precisión")
 
 
-async def test_report_requires_valid_period(client: AsyncClient, institution: Institution) -> None:
-    domain = institution.email_domains[0]
-    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
-    group = await create_group(client, teacher_access)
-
-    resp = await client.post(
-        f"/groups/{group['id']}/reports",
-        json={"format": "xlsx", "period_id": "00000000-0000-0000-0000-000000000000"},
-        headers=auth_headers(teacher_access),
-    )
-    assert resp.status_code == 404
-
-
 async def test_generate_group_report_is_noop_when_already_done(
     client: AsyncClient, institution: Institution
 ) -> None:

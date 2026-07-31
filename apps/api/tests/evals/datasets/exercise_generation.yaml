@@ -98,25 +98,6 @@ cases:
       title_min_length: 5
       content_has_keys: ["statement", "code", "expected_trace"]
 
-  - id: order_lines_funciones_basico
-    template_vars:
-      exercise_type: "order_lines"
-      topic_name: "Funciones"
-      language: "Python"
-      level: "basico"
-      reference_context: ""
-      similar_exercises: ""
-      schema_hint: >-
-        {"title": "...", "content": {"statement": "...", "lines": ["...", "..."],
-        "correct_order": [0, 1]}}
-    fake_model_output: >-
-      {"title": "Ordena la definición de una función",
-      "content": {"statement": "Ordena las líneas para definir correctamente una función",
-      "lines": ["    return a + b", "def sumar(a, b):"], "correct_order": [1, 0]}}
-    checks:
-      title_min_length: 5
-      content_has_keys: ["statement", "lines", "correct_order"]
-
   - id: argued_response_arreglos_avanzado
     template_vars:
       exercise_type: "argued_response"

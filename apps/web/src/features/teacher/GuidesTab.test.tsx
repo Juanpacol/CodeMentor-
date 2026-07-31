@@ -156,6 +156,36 @@ describe('GuidesTab', () => {
     expect(dialog.getByText('Publicada')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Publicar' })).not.toBeInTheDocument()
     expect(dialog.getByRole('button', { name: 'Archivar' })).toBeInTheDocument()
+    // Publicada: solo se archiva, nunca se borra (§9.2).
+    expect(dialog.queryByRole('button', { name: 'Quitar' })).not.toBeInTheDocument()
+  })
+
+  it('quitar un borrador pide confirmación antes de llamar al backend', async () => {
+    const calls: Call[] = []
+    stubApi(
+      {
+        'guide-folders': [FOLDER],
+        'guide-templates': [TEMPLATE],
+        curriculum: CURRICULUM,
+        'folder-1/guides': [guide()],
+      },
+      calls,
+    )
+    renderTab()
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: /Guía de laboratorio — Ciclos/ }),
+    )
+    const dialog = within(screen.getByRole('dialog'))
+    await userEvent.click(dialog.getByRole('button', { name: 'Quitar' }))
+
+    // Un clic no basta: primero pide confirmar.
+    expect(dialog.getByText(/No se puede deshacer/)).toBeInTheDocument()
+    expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
+
+    await userEvent.click(dialog.getByRole('button', { name: 'Sí, quitar' }))
+
+    await waitFor(() => expect(calls.some((call) => call.method === 'DELETE')).toBe(true))
   })
 
   it('muestra el motivo cuando la generación falló', async () => {

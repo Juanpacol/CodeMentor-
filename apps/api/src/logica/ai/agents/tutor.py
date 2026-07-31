@@ -9,8 +9,7 @@ import uuid
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logica.ai.agents.config_service import ensure_agent_enabled
-from logica.ai.agents.models import AgentName, TutorMessage, TutorMessageRole
+from logica.ai.agents.models import TutorMessage, TutorMessageRole
 from logica.ai.agents.repository import create_tutor_message, list_tutor_messages
 from logica.ai.rag.retriever import retrieve
 from logica.ai.skills.progressive_hint import generate_progressive_hint
@@ -52,7 +51,6 @@ async def ask_hint(
         raise PermissionDeniedError("Solo un estudiante puede pedir una pista al tutor")
 
     await get_group_with_access(db, student, group_id)
-    await ensure_agent_enabled(db, group_id, AgentName.tutor)
 
     exercise = await _get_enabled_exercise(db, student.institution_id, group_id, exercise_id)
 

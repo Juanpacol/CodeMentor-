@@ -280,24 +280,6 @@ async def seed() -> None:
         )
         await get_or_create_exercise(
             pseint.id,
-            "Ordenar: cálculo de un promedio",
-            ExerciseType.order_lines,
-            {
-                "statement": (
-                    "Ordena las líneas para que el algoritmo calcule correctamente "
-                    "el promedio de dos notas."
-                ),
-                "lines": [
-                    "Escribir promedio",
-                    "promedio <- (n1 + n2) / 2",
-                    "Leer n1, n2",
-                    "Definir n1, n2, promedio Como Real",
-                ],
-                "correct_order": [3, 2, 1, 0],
-            },
-        )
-        await get_or_create_exercise(
-            pseint.id,
             "Argumenta: Mientras vs. Repetir",
             ExerciseType.argued_response,
             {

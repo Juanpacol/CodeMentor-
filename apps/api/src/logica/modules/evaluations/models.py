@@ -57,6 +57,11 @@ class Evaluation(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
     )
     duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_ranked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Cuánto pesa esta evaluación en la nota acumulada del grupo (0-100).
+    # Nullable: no todo docente lleva la nota por porcentajes desde el día uno,
+    # y una evaluación sin peso definido simplemente no entra al cálculo del
+    # acumulado — no hay valor por defecto que no sea una suposición falsa.
+    weight_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class EvaluationExercise(UUIDPkMixin, TimestampMixin, Base):

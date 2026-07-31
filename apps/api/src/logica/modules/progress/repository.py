@@ -16,7 +16,7 @@ from logica.modules.evaluations.models import (
 )
 from logica.modules.exercises.models import Exercise, TopicExercise
 from logica.modules.groups.models import GroupMembership
-from logica.modules.progress.models import AcademicPeriod, Badge, BadgeCriteria, StudentBadge
+from logica.modules.progress.models import Badge, BadgeCriteria, StudentBadge
 
 _CORRECT_AS_INT = cast(PracticeSubmission.correct, Integer)
 
@@ -289,44 +289,13 @@ async def recent_evaluation_attempts(
     return [(row, title) for row, title in result.all()]
 
 
-async def create_academic_period(
-    db: AsyncSession, institution_id: uuid.UUID, name: str, start_date: date, end_date: date
-) -> AcademicPeriod:
-    period = AcademicPeriod(
-        institution_id=institution_id, name=name, start_date=start_date, end_date=end_date
-    )
-    db.add(period)
-    await db.flush()
-    await db.refresh(period)
-    return period
-
-
-async def list_academic_periods(
-    db: AsyncSession, institution_id: uuid.UUID
-) -> list[AcademicPeriod]:
-    stmt = (
-        select(AcademicPeriod)
-        .where(AcademicPeriod.institution_id == institution_id)
-        .order_by(AcademicPeriod.start_date.desc())
-    )
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
-
-
-async def get_academic_period(db: AsyncSession, period_id: uuid.UUID) -> AcademicPeriod | None:
-    return await db.get(AcademicPeriod, period_id)
-
-
 __all__ = [
     "BadgeCriteria",
     "count_correct_practice",
-    "create_academic_period",
-    "get_academic_period",
     "get_badge_by_slug",
     "get_student_badge",
     "group_member_ids",
     "language_accuracy",
-    "list_academic_periods",
     "list_badges",
     "list_student_badges",
     "mastery_by_language",

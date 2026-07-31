@@ -12,8 +12,6 @@ from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logica.ai.agents.config_service import ensure_agent_enabled
-from logica.ai.agents.models import AgentName
 from logica.ai.harness.structured import complete_structured
 from logica.core.errors import NotFoundError, PermissionDeniedError
 from logica.modules.evaluations.models import EvaluationAnswer
@@ -52,7 +50,6 @@ async def suggest_grade(
     if evaluation is None or evaluation.institution_id != teacher.institution_id:
         raise NotFoundError("Evaluación no encontrada")
     await get_group_with_access(db, teacher, evaluation.group_id)
-    await ensure_agent_enabled(db, evaluation.group_id, AgentName.grading_assistant)
 
     answer = await get_answer_by_id(db, answer_id)
     if answer is None:

@@ -512,7 +512,8 @@ export interface paths {
         get: operations["get_guide_guides__guide_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete Guide */
+        delete: operations["delete_guide_guides__guide_id__delete"];
         options?: never;
         head?: never;
         /** Update Guide */
@@ -916,40 +917,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ai/groups/{group_id}/agents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Agents */
-        get: operations["list_agents_ai_groups__group_id__agents_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ai/groups/{group_id}/agents/{agent_name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Toggle Agent */
-        put: operations["toggle_agent_ai_groups__group_id__agents__agent_name__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/ai/tutor/hint": {
         parameters: {
             query?: never;
@@ -995,6 +962,27 @@ export interface paths {
         put?: never;
         /** Generate Exercise */
         post: operations["generate_exercise_ai_exercises_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/exercises/{exercise_id}/variants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Exercise Variants
+         * @description Preview puro (ítem 21): no crea nada, el docente acepta/edita/descarta
+         *     cada variante y solo las aceptadas se crean vía `POST /exercises`.
+         */
+        post: operations["generate_exercise_variants_ai_exercises__exercise_id__variants_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1261,24 +1249,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/academic-periods": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Academic Periods */
-        get: operations["list_academic_periods_academic_periods_get"];
-        put?: never;
-        /** Create Academic Period */
-        post: operations["create_academic_period_academic_periods_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/groups/{group_id}/reports": {
         parameters: {
             query?: never;
@@ -1384,6 +1354,28 @@ export interface paths {
         get: operations["get_rubric_run_rubric_runs__run_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rubric-runs/extract-topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extract Topics From Document
+         * @description Paso de *preview* puro: extrae los temas de un PDF/DOCX de rúbrica
+         *     institucional para prellenar el textarea de `POST /rubric-runs`, pero no
+         *     crea ningún `RubricRun` — el docente revisa/edita antes de enviar.
+         */
+        post: operations["extract_topics_from_document_rubric_runs_extract_topics_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1589,68 +1581,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AcademicPeriodCreateRequest */
-        AcademicPeriodCreateRequest: {
-            /** Name */
-            name: string;
-            /**
-             * Start Date
-             * Format: date
-             */
-            start_date: string;
-            /**
-             * End Date
-             * Format: date
-             */
-            end_date: string;
-        };
-        /** AcademicPeriodOut */
-        AcademicPeriodOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-            /**
-             * Start Date
-             * Format: date
-             */
-            start_date: string;
-            /**
-             * End Date
-             * Format: date
-             */
-            end_date: string;
-        };
-        /** AgentConfigOut */
-        AgentConfigOut: {
-            agent_name: components["schemas"]["AgentName"];
-            /** Enabled */
-            enabled: boolean;
-        };
-        /**
-         * AgentName
-         * @description The agents from §9.2 plus el creador de guías (Fase 16). Values double as
-         *     the harness `task` name each one drives (ai/harness/router.TASK_TIERS), so
-         *     there is exactly one vocabulary for "which agent/task is this", not two that
-         *     can drift.
-         *
-         *     Ese invariante lo verifica `tests/unit/test_agent_registry.py`: agregar un
-         *     miembro acá obliga a agregar su tier y su plantilla de prompt en el mismo
-         *     commit. No es burocracia — `curriculum_planner` vivió en este enum sin
-         *     plantilla ni tier, así que aparecía en `GET /ai/groups/{id}/agents` como un
-         *     agente activo que el docente podía apagar y que, si algo lo hubiera invocado,
-         *     habría muerto con `TemplateNotFound` en runtime.
-         * @enum {string}
-         */
-        AgentName: "progressive_hint" | "exercise_generation" | "grading_suggestion" | "summarize_group" | "code_integrity" | "guide_generation";
-        /** AgentToggleRequest */
-        AgentToggleRequest: {
-            /** Enabled */
-            enabled: boolean;
-        };
         /** AiBudgetStatusOut */
         AiBudgetStatusOut: {
             /** Month To Date Usd */
@@ -1726,6 +1656,10 @@ export interface components {
             topic_id?: string | null;
             /** Exercise Id */
             exercise_id?: string | null;
+            /** Evaluation Id */
+            evaluation_id?: string | null;
+            /** Guide Id */
+            guide_id?: string | null;
             /** Due At */
             due_at?: string | null;
         };
@@ -1747,6 +1681,10 @@ export interface components {
             topic_id: string | null;
             /** Exercise Id */
             exercise_id: string | null;
+            /** Evaluation Id */
+            evaluation_id: string | null;
+            /** Guide Id */
+            guide_id: string | null;
             /** Due At */
             due_at: string | null;
             /**
@@ -1861,6 +1799,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_extract_topics_from_document_rubric_runs_extract_topics_post */
+        Body_extract_topics_from_document_rubric_runs_extract_topics_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_rag_document_ai_rag_documents_post */
         Body_upload_rag_document_ai_rag_documents_post: {
             /** File */
@@ -1922,6 +1865,16 @@ export interface components {
             submissions: number;
             /** Correct */
             correct: number;
+        };
+        /**
+         * DocumentExtractionResult
+         * @description Salida de `POST /rubric-runs/extract-topics`: un paso de *preview* puro
+         *     (no crea `RubricRun` ni `RubricItem`), pensado para prellenar el textarea de
+         *     temas que el docente ya conoce y sigue pudiendo editar antes de enviar.
+         */
+        DocumentExtractionResult: {
+            /** Items */
+            items?: components["schemas"]["ExtractedTopicItem"][];
         };
         /** ErrorLogOut */
         ErrorLogOut: {
@@ -1998,6 +1951,8 @@ export interface components {
              * @default false
              */
             is_ranked: boolean;
+            /** Weight Percent */
+            weight_percent?: number | null;
             /** Exercise Ids */
             exercise_ids: string[];
         };
@@ -2037,6 +1992,8 @@ export interface components {
             duration_minutes: number | null;
             /** Is Ranked */
             is_ranked: boolean;
+            /** Weight Percent */
+            weight_percent: number | null;
         };
         /** ExerciseCreateRequest */
         ExerciseCreateRequest: {
@@ -2117,7 +2074,7 @@ export interface components {
          *     type is one class + one registry entry, and this is that showcase.
          * @enum {string}
          */
-        ExerciseType: "true_false" | "multiple_choice" | "fill_code" | "find_error" | "trace_variables" | "order_lines" | "argued_response" | "live_code";
+        ExerciseType: "true_false" | "multiple_choice" | "fill_code" | "find_error" | "trace_variables" | "argued_response" | "live_code";
         /** ExerciseUpdateRequest */
         ExerciseUpdateRequest: {
             /** Title */
@@ -2127,6 +2084,27 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             status?: components["schemas"]["ExerciseStatus"] | null;
+        };
+        /**
+         * ExerciseVariantOut
+         * @description Preview puro: no tiene `id` porque no se persiste hasta que el docente
+         *     la acepta (vía el `POST /exercises` que ya existe).
+         */
+        ExerciseVariantOut: {
+            /** Title */
+            title: string;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            };
+        };
+        /** ExerciseVariantsRequest */
+        ExerciseVariantsRequest: {
+            /**
+             * Count
+             * @default 3
+             */
+            count: number;
         };
         /** ExerciseVersionOut */
         ExerciseVersionOut: {
@@ -2151,6 +2129,18 @@ export interface components {
              */
             created_at: string;
         };
+        /** ExtractedTopicItem */
+        ExtractedTopicItem: {
+            /** Topic Name */
+            topic_name: string;
+            /** @default basico */
+            level: components["schemas"]["TopicLevel"];
+            /**
+             * Order Index
+             * @default 0
+             */
+            order_index: number;
+        };
         /** GoogleLoginRequest */
         GoogleLoginRequest: {
             /** Id Token */
@@ -2168,6 +2158,8 @@ export interface components {
             mode: components["schemas"]["EvaluationMode"];
             /** Is Ranked */
             is_ranked: boolean;
+            /** Weight Percent */
+            weight_percent: number | null;
         };
         /** GradebookOut */
         GradebookOut: {
@@ -2201,6 +2193,8 @@ export interface components {
             evaluations_submitted: number;
             /** Avg Evaluation Score */
             avg_evaluation_score: number | null;
+            /** Weighted Average */
+            weighted_average: number | null;
         };
         /** GradingSuggestionOut */
         GradingSuggestionOut: {
@@ -2906,8 +2900,6 @@ export interface components {
         /** ReportRequest */
         ReportRequest: {
             format: components["schemas"]["ReportFormat"];
-            /** Period Id */
-            period_id?: string | null;
         };
         /**
          * ReportStatus
@@ -3104,6 +3096,10 @@ export interface components {
             topic_id: string | null;
             /** Exercise Id */
             exercise_id: string | null;
+            /** Evaluation Id */
+            evaluation_id: string | null;
+            /** Guide Id */
+            guide_id: string | null;
             /** Due At */
             due_at: string | null;
             /** Done */
@@ -4431,6 +4427,35 @@ export interface operations {
             };
         };
     };
+    delete_guide_guides__guide_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                guide_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_guide_guides__guide_id__patch: {
         parameters: {
             query?: never;
@@ -5279,73 +5304,6 @@ export interface operations {
             };
         };
     };
-    list_agents_ai_groups__group_id__agents_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                group_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentConfigOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    toggle_agent_ai_groups__group_id__agents__agent_name__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                group_id: string;
-                agent_name: components["schemas"]["AgentName"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AgentToggleRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentConfigOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     ask_tutor_hint_ai_tutor_hint_post: {
         parameters: {
             query?: never;
@@ -5432,6 +5390,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExerciseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_exercise_variants_ai_exercises__exercise_id__variants_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exercise_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExerciseVariantsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExerciseVariantOut"][];
                 };
             };
             /** @description Validation Error */
@@ -5903,59 +5896,6 @@ export interface operations {
             };
         };
     };
-    list_academic_periods_academic_periods_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AcademicPeriodOut"][];
-                };
-            };
-        };
-    };
-    create_academic_period_academic_periods_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AcademicPeriodCreateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AcademicPeriodOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     request_group_report_groups__group_id__reports_post: {
         parameters: {
             query?: never;
@@ -6168,6 +6108,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RubricRunDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    extract_topics_from_document_rubric_runs_extract_topics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_extract_topics_from_document_rubric_runs_extract_topics_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentExtractionResult"];
                 };
             };
             /** @description Validation Error */

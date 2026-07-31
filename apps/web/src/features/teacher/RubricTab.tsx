@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { EXERCISE_TYPE_LABELS } from '../../components/exercises/registry'
 import { Badge } from '../../components/ui/Badge'
@@ -90,6 +90,7 @@ export function RubricTab({ groupId }: { groupId: string }) {
   // `error` no se persiste: es la consecuencia de un envío concreto, y
   // resucitarlo al volver a la pestaña señalaría un fallo que ya no existe.
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Un temario son varios minutos de escritura. Ver otra pestaña y volver no
   // puede costarlos — de ahí el borrador por grupo (ver `useDraftState`).
@@ -147,6 +148,42 @@ export function RubricTab({ groupId }: { groupId: string }) {
   })
 
   const parsedTopics = parseTopics(topicsRaw, defaultLevel)
+
+  // Sube el PDF/Word de la rúbrica institucional y prellena el textarea de
+  // temas con lo que la IA extrajo — el docente lo sigue editando con el
+  // mismo control antes de "Generar contenido", el resto del flujo no cambia.
+  const extractTopics = useMutation({
+    mutationFn: (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      return unwrap(
+        apiClient.POST('/rubric-runs/extract-topics', {
+          // openapi-fetch pasa un FormData tal cual — mismo workaround que
+          // MaterialsTab.tsx para la subida de material RAG.
+          body: formData as unknown as { file: string },
+        }),
+      )
+    },
+    onSuccess: (result) => {
+      const extractedText = result.items
+        .map((item) => `${item.topic_name} | ${item.level}`)
+        .join('\n')
+      setTopicsRaw((current) => (current ? `${current}\n${extractedText}` : extractedText))
+      setError(null)
+      pushToast(
+        `${result.items.length} tema${result.items.length === 1 ? '' : 's'} extraído${result.items.length === 1 ? '' : 's'}, revísalos antes de generar`,
+        'success',
+      )
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.detail : 'No se pudo leer el documento'),
+  })
+
+  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) extractTopics.mutate(file)
+  }
 
   const createRun = useMutation({
     mutationFn: () =>
@@ -266,7 +303,33 @@ export function RubricTab({ groupId }: { groupId: string }) {
         </div>
 
         <div className="flex flex-col gap-1">
-          <Label htmlFor="rubric-topics">Temas, uno por línea</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="rubric-topics">Temas, uno por línea</Label>
+            <div className="flex items-center gap-2">
+              {extractTopics.isPending && <Spinner className="size-4" />}
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={extractTopics.isPending}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Subir documento (.pdf, .docx)
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx"
+                className="hidden"
+                disabled={extractTopics.isPending}
+                onChange={handleFileSelected}
+              />
+            </div>
+          </div>
+          <p className="text-sm text-muted">
+            Sube la rúbrica institucional en PDF o Word y la plataforma propone los temas que
+            trae, para que solo tengas que revisarlos y ajustarlos abajo.
+          </p>
           <Textarea
             id="rubric-topics"
             rows={7}

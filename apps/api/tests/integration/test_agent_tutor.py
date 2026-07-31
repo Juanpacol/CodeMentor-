@@ -104,45 +104,6 @@ async def test_tutor_never_reveals_full_solution(
     assert resp.status_code == 422
 
 
-async def test_tutor_disabled_for_group_blocks_hint(
-    client: AsyncClient, institution: Institution, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    domain = institution.email_domains[0]
-    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
-    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
-
-    group, exercise_id = await _setup_group_with_exercise(client, teacher_access)
-    await join_group(client, student_access, group["invite_code"])
-
-    await client.put(
-        f"/ai/groups/{group['id']}/agents/progressive_hint",
-        json={"enabled": False},
-        headers=auth_headers(teacher_access),
-    )
-
-    called = False
-
-    async def fake(task: str, messages: list[dict[str, str]]) -> CompletionResult:
-        nonlocal called
-        called = True
-        return CompletionResult(text="x", model="x", prompt_tokens=0, completion_tokens=0)
-
-    monkeypatch.setattr("logica.ai.harness.harness.router_complete", fake)
-
-    resp = await client.post(
-        "/ai/tutor/hint",
-        json={
-            "group_id": group["id"],
-            "exercise_id": exercise_id,
-            "attempt_number": 1,
-            "student_answer": "ayuda",
-        },
-        headers=auth_headers(student_access),
-    )
-    assert resp.status_code == 403
-    assert called is False
-
-
 async def test_student_cannot_see_another_students_history(
     client: AsyncClient, institution: Institution, monkeypatch: pytest.MonkeyPatch
 ) -> None:

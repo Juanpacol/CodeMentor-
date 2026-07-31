@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 
-from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -68,16 +68,3 @@ class StudentBadge(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("topics.id"), nullable=True
     )
     earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
-class AcademicPeriod(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
-    """RF-17: un rango de fechas con nombre (por ejemplo "Periodo 1 - 2026")
-    que el docente crea explícitamente y que los reportes/el progreso pueden
-    usar para filtrar por fecha — no altera ninguna tabla existente, solo
-    acota una consulta por `created_at`/`submitted_at` entre sus fechas."""
-
-    __tablename__ = "academic_periods"
-
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    end_date: Mapped[date] = mapped_column(Date, nullable=False)

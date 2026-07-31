@@ -47,7 +47,6 @@ export const qk = {
   ai: {
     tutorHistory: (groupId: string, exerciseId: string, studentId?: string) =>
       ['ai', 'tutor-history', groupId, exerciseId, studentId ?? 'self'] as const,
-    agentConfig: (groupId: string) => ['ai', 'agent-config', groupId] as const,
     pendingApprovals: ['ai', 'pending-approvals'] as const,
   },
   guides: {
@@ -65,7 +64,6 @@ export const qk = {
     job: (jobId: string) => ['reports', jobId] as const,
     gradebook: (groupId: string) => ['reports', 'gradebook', groupId] as const,
   },
-  academicPeriods: ['academic-periods'] as const,
   observability: {
     errors: (filters: { statusCode?: number; path?: string; page: number }) =>
       ['observability', 'errors', filters.statusCode ?? 'all', filters.path ?? '', filters.page] as const,

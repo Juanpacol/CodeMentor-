@@ -9,8 +9,6 @@ from redis.asyncio import Redis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logica.ai.agents.config_service import ensure_agent_enabled
-from logica.ai.agents.models import AgentName
 from logica.ai.skills.summarize_group import generate_group_summary
 from logica.core.errors import NotFoundError, PermissionDeniedError
 from logica.modules.evaluations.models import PracticeSubmission
@@ -72,7 +70,6 @@ async def summarize_group(
         )
 
     await get_group_with_access(db, teacher, group_id)
-    await ensure_agent_enabled(db, group_id, AgentName.learning_analytics)
 
     group = await get_group(db, group_id)
     if group is None:

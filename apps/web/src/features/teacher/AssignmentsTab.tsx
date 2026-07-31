@@ -12,10 +12,17 @@ import { pushToast } from '../../components/ui/toastStore'
 import { apiClient, ApiError, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
 
-/** Un tema o un ejercicio, nunca ambos: es el mismo invariante que el
+/** Exactamente uno de los cuatro, nunca varios: es el mismo invariante que el
  * `CheckConstraint` de la tabla, expresado como un solo selector para que la UI
  * no permita construir un estado que el backend rechaza. */
-type Target = 'topic' | 'exercise'
+type Target = 'topic' | 'exercise' | 'evaluation' | 'guide'
+
+const TARGET_LABELS: Record<Target, string> = {
+  topic: 'Un tema completo',
+  exercise: 'Un ejercicio suelto',
+  evaluation: 'Un examen',
+  guide: 'Un taller (guía)',
+}
 
 export function AssignmentsTab({ groupId }: { groupId: string }) {
   const queryClient = useQueryClient()
@@ -50,6 +57,20 @@ export function AssignmentsTab({ groupId }: { groupId: string }) {
     queryFn: () => unwrap(apiClient.GET('/exercises')),
   })
 
+  const { data: evaluations } = useQuery({
+    queryKey: qk.groupEvaluations(groupId),
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/groups/{group_id}/evaluations', { params: { path: { group_id: groupId } } }),
+      ),
+  })
+
+  const { data: guides } = useQuery({
+    queryKey: qk.guides.published(groupId),
+    queryFn: () =>
+      unwrap(apiClient.GET('/groups/{group_id}/guides', { params: { path: { group_id: groupId } } })),
+  })
+
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: qk.assignments.forGroup(groupId) })
 
@@ -62,6 +83,8 @@ export function AssignmentsTab({ groupId }: { groupId: string }) {
             title,
             topic_id: target === 'topic' ? targetId : null,
             exercise_id: target === 'exercise' ? targetId : null,
+            evaluation_id: target === 'evaluation' ? targetId : null,
+            guide_id: target === 'guide' ? targetId : null,
             // `datetime-local` no lleva zona; se interpreta como hora local del
             // docente, que es lo que él quiso decir con "hasta el viernes".
             due_at: dueAt ? new Date(dueAt).toISOString() : null,
@@ -97,11 +120,34 @@ export function AssignmentsTab({ groupId }: { groupId: string }) {
 
   const canSubmit = title.trim() !== '' && targetId !== '' && !create.isPending
 
-  const nameFor = (assignment: { topic_id: string | null; exercise_id: string | null }) => {
+  const nameFor = (assignment: {
+    topic_id: string | null
+    exercise_id: string | null
+    evaluation_id: string | null
+    guide_id: string | null
+  }) => {
     if (assignment.topic_id) {
       return topics.find((t) => t.id === assignment.topic_id)?.name ?? 'Tema'
     }
-    return exercises?.find((e) => e.id === assignment.exercise_id)?.title ?? 'Ejercicio'
+    if (assignment.exercise_id) {
+      return exercises?.find((e) => e.id === assignment.exercise_id)?.title ?? 'Ejercicio'
+    }
+    if (assignment.evaluation_id) {
+      return evaluations?.find((e) => e.id === assignment.evaluation_id)?.title ?? 'Examen'
+    }
+    return guides?.find((g) => g.id === assignment.guide_id)?.title ?? 'Taller'
+  }
+
+  const targetKindLabel = (assignment: {
+    topic_id: string | null
+    exercise_id: string | null
+    evaluation_id: string | null
+    guide_id: string | null
+  }) => {
+    if (assignment.topic_id) return 'Tema'
+    if (assignment.exercise_id) return 'Ejercicio'
+    if (assignment.evaluation_id) return 'Examen'
+    return 'Taller'
   }
 
   return (
@@ -143,29 +189,50 @@ export function AssignmentsTab({ groupId }: { groupId: string }) {
                 setTargetId('')
               }}
             >
-              <option value="topic">Un tema completo</option>
-              <option value="exercise">Un ejercicio suelto</option>
+              {(Object.keys(TARGET_LABELS) as Target[]).map((t) => (
+                <option key={t} value={t}>
+                  {TARGET_LABELS[t]}
+                </option>
+              ))}
             </Select>
           </div>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="as-target-id">{target === 'topic' ? 'Tema' : 'Ejercicio'}</Label>
+            <Label htmlFor="as-target-id">
+              {target === 'topic' && 'Tema'}
+              {target === 'exercise' && 'Ejercicio'}
+              {target === 'evaluation' && 'Examen'}
+              {target === 'guide' && 'Taller'}
+            </Label>
             <Select
               id="as-target-id"
               value={targetId}
               onChange={(e) => setTargetId(e.target.value)}
             >
               <option value="">Selecciona…</option>
-              {target === 'topic'
-                ? topics.map((topic) => (
-                    <option key={topic.id} value={topic.id}>
-                      {topic.name}
-                    </option>
-                  ))
-                : exercises?.map((exercise) => (
-                    <option key={exercise.id} value={exercise.id}>
-                      {exercise.title}
-                    </option>
-                  ))}
+              {target === 'topic' &&
+                topics.map((topic) => (
+                  <option key={topic.id} value={topic.id}>
+                    {topic.name}
+                  </option>
+                ))}
+              {target === 'exercise' &&
+                exercises?.map((exercise) => (
+                  <option key={exercise.id} value={exercise.id}>
+                    {exercise.title}
+                  </option>
+                ))}
+              {target === 'evaluation' &&
+                evaluations?.map((evaluation) => (
+                  <option key={evaluation.id} value={evaluation.id}>
+                    {evaluation.title}
+                  </option>
+                ))}
+              {target === 'guide' &&
+                guides?.map((guide) => (
+                  <option key={guide.id} value={guide.id}>
+                    {guide.title}
+                  </option>
+                ))}
             </Select>
           </div>
         </div>
@@ -195,7 +262,7 @@ export function AssignmentsTab({ groupId }: { groupId: string }) {
             <div>
               <p className="font-medium text-ink">{assignment.title}</p>
               <p className="text-xs text-ink-secondary">
-                {assignment.topic_id ? 'Tema' : 'Ejercicio'}: {nameFor(assignment)}
+                {targetKindLabel(assignment)}: {nameFor(assignment)}
               </p>
             </div>
             <div className="flex items-center gap-2">

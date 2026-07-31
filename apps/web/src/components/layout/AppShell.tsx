@@ -4,9 +4,12 @@ import { NavLink, Outlet } from 'react-router'
 
 import { cn } from '../../lib/cn'
 import { useAuth } from '../../hooks/useAuth'
+import { useDraftState } from '../../hooks/useDraftState'
 import { Button } from '../ui/Button'
 import { ThemeToggle } from '../ui/ThemeToggle'
 import { NotificationBell } from './NotificationBell'
+
+type ViewAs = 'teacher' | 'student'
 
 interface NavItem {
   to: string
@@ -24,11 +27,23 @@ const teacherNav: NavItem[] = [
   { to: '/app/docente/ejercicios', label: 'Banco de ejercicios' },
   { to: '/app/docente/evaluaciones/nueva', label: 'Nueva evaluación' },
   { to: '/app/docente/bandeja', label: 'Bandeja de aprobaciones' },
+  { to: '/app/docente/pendientes', label: 'Pendientes' },
   { to: '/app/docente/actividad', label: 'Actividad y errores' },
-  { to: '/app/admin/periodos', label: 'Periodos académicos' },
 ]
 
-function SidebarContent({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () => void }) {
+function SidebarContent({
+  nav,
+  onNavigate,
+  canPreviewAsStudent,
+  viewAs,
+  setViewAs,
+}: {
+  nav: NavItem[]
+  onNavigate?: () => void
+  canPreviewAsStudent: boolean
+  viewAs: ViewAs
+  setViewAs: (next: ViewAs) => void
+}) {
   const { user, logout } = useAuth()
   return (
     <>
@@ -62,6 +77,16 @@ function SidebarContent({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () =
           </Button>
           <ThemeToggle />
         </div>
+        {canPreviewAsStudent && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-1 w-full justify-start"
+            onClick={() => setViewAs(viewAs === 'student' ? 'teacher' : 'student')}
+          >
+            {viewAs === 'student' ? 'Volver a vista docente' : 'Ver como estudiante'}
+          </Button>
+        )}
       </div>
     </>
   )
@@ -71,12 +96,22 @@ export function AppShell() {
   const { user } = useAuth()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin'
-  const nav = isTeacher ? teacherNav : studentNav
+  // `sessionStorage` y no persistente: es una vista temporal para revisar la
+  // plataforma, no una preferencia — reaparecer activada en otra sesión
+  // confundiría a un docente que la prendió una vez para probar algo.
+  const [viewAs, setViewAs] = useDraftState<ViewAs>('viewAs', 'teacher')
+  const effectiveViewAs = isTeacher ? viewAs : 'student'
+  const nav = effectiveViewAs === 'teacher' ? teacherNav : studentNav
 
   return (
     <div className="flex min-h-screen bg-canvas">
       <aside className="no-print hidden w-60 shrink-0 flex-col border-r border-hairline bg-surface p-4 md:flex">
-        <SidebarContent nav={nav} />
+        <SidebarContent
+          nav={nav}
+          canPreviewAsStudent={isTeacher}
+          viewAs={effectiveViewAs}
+          setViewAs={setViewAs}
+        />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -102,6 +137,15 @@ export function AppShell() {
           </div>
         </header>
 
+        {isTeacher && viewAs === 'student' && (
+          <div className="no-print flex items-center justify-between gap-3 border-b border-hairline bg-tint-lavender px-4 py-2 text-sm text-tint-lavender-fg">
+            <span>Estás viendo la plataforma como estudiante.</span>
+            <Button variant="ghost" size="sm" onClick={() => setViewAs('teacher')}>
+              Volver a vista docente
+            </Button>
+          </div>
+        )}
+
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <Outlet />
         </main>
@@ -126,7 +170,13 @@ export function AppShell() {
               onClick={(e) => e.stopPropagation()}
               className="flex h-full w-64 max-w-[80vw] flex-col border-r border-hairline bg-surface p-4"
             >
-              <SidebarContent nav={nav} onNavigate={() => setMobileNavOpen(false)} />
+              <SidebarContent
+                nav={nav}
+                onNavigate={() => setMobileNavOpen(false)}
+                canPreviewAsStudent={isTeacher}
+                viewAs={effectiveViewAs}
+                setViewAs={setViewAs}
+              />
             </motion.aside>
           </motion.div>
         )}

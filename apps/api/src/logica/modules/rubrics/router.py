@@ -1,17 +1,21 @@
 import uuid
 
 from arq import ArqRedis
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, UploadFile
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from logica.ai.agents.rubric_topic_extractor import extract_topics_from_text
 from logica.core.arq_dep import get_arq_pool
+from logica.core.errors import ValidationDomainError
 from logica.core.permissions import require_permission
+from logica.core.rate_limit import user_limiter
 from logica.core.redis_dep import get_redis
 from logica.db import get_db
-from logica.modules.rubrics import service
+from logica.modules.rubrics import document_extraction, service
 from logica.modules.rubrics.models import RubricRun
 from logica.modules.rubrics.schemas import (
+    DocumentExtractionResult,
     RubricItemOut,
     RubricRunCreateRequest,
     RubricRunDetailOut,
@@ -74,6 +78,45 @@ async def get_rubric_run(
         run=RubricRunOut.model_validate(run),
         items=[RubricItemOut.model_validate(item) for item in items],
     )
+
+
+@router.post("/rubric-runs/extract-topics", response_model=DocumentExtractionResult)
+@user_limiter.limit("10/minute")
+async def extract_topics_from_document(
+    request: Request,
+    file: UploadFile,
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> DocumentExtractionResult:
+    """Paso de *preview* puro: extrae los temas de un PDF/DOCX de rúbrica
+    institucional para prellenar el textarea de `POST /rubric-runs`, pero no
+    crea ningún `RubricRun` — el docente revisa/edita antes de enviar."""
+    filename = file.filename or ""
+    if not filename.lower().endswith(document_extraction.ALLOWED_EXTENSIONS):
+        raise ValidationDomainError(
+            "Formato de archivo no soportado",
+            hint="Solo se aceptan archivos .pdf o .docx.",
+        )
+    if file.content_type not in document_extraction.ALLOWED_CONTENT_TYPES:
+        raise ValidationDomainError(
+            "Formato de archivo no soportado",
+            hint="Solo se aceptan archivos .pdf o .docx.",
+        )
+
+    raw = await file.read()
+    if len(raw) > document_extraction.MAX_FILE_BYTES:
+        raise ValidationDomainError(
+            "El documento es demasiado grande",
+            hint=f"El máximo es {document_extraction.MAX_FILE_BYTES // 1_000_000} MB.",
+        )
+
+    if filename.lower().endswith(".pdf"):
+        raw_text = document_extraction.extract_text_from_pdf(raw)
+    else:
+        raw_text = document_extraction.extract_text_from_docx(raw)
+
+    return await extract_topics_from_text(db, redis, user=user, raw_text=raw_text)
 
 
 @router.post("/rubric-runs/{run_id}/cancel", response_model=RubricRunOut)

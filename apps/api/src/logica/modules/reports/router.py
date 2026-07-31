@@ -40,9 +40,7 @@ async def request_group_report(
     db: AsyncSession = Depends(get_db),
     arq_pool: ArqRedis = Depends(get_arq_pool),
 ) -> ReportJobOut:
-    job = await service.request_group_report(
-        db, arq_pool, user, group_id, payload.format, payload.period_id
-    )
+    job = await service.request_group_report(db, arq_pool, user, group_id, payload.format)
     await db.commit()
     return ReportJobOut.model_validate(job)
 
@@ -95,6 +93,7 @@ async def get_gradebook(
                 ],
                 evaluations_submitted=row.evaluations_submitted,
                 avg_evaluation_score=row.avg_evaluation_score,
+                weighted_average=row.weighted_average,
             )
             for row in students
         ],

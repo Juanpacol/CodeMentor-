@@ -24,7 +24,6 @@ from logica.modules.guides.models import (
 )
 from logica.modules.users.models import Institution
 from tests.integration.conftest import (
-    auth_headers,
     create_group,
     create_language,
     create_topic,
@@ -258,34 +257,6 @@ async def test_teacher_budget_is_larger_than_student_budget(
     guide = await _run_write_guide(seeded.guide_id, redis_client)
 
     assert guide.status == GuideStatus.draft
-
-
-async def test_disabled_agent_blocks_generation(
-    client: AsyncClient,
-    institution: Institution,
-    redis_client: Redis,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    seeded = await _seed_guide(client, institution)
-    await client.put(
-        f"/ai/groups/{seeded.group_id}/agents/guide_generation",
-        json={"enabled": False},
-        headers=auth_headers(seeded.teacher_access),
-    )
-
-    called = False
-
-    async def fake(task: str, messages: list[dict[str, str]]) -> CompletionResult:
-        nonlocal called
-        called = True
-        return CompletionResult(text="{}", model="x", prompt_tokens=0, completion_tokens=0)
-
-    monkeypatch.setattr("logica.ai.harness.harness.router_complete", fake)
-
-    guide = await _run_write_guide(seeded.guide_id, redis_client)
-
-    assert guide.status == GuideStatus.failed
-    assert called is False
 
 
 async def test_sources_cite_the_course_material(

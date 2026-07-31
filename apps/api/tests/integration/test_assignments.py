@@ -183,6 +183,100 @@ async def test_el_estudiante_solo_ve_asignaciones_de_sus_grupos(
     assert body == []
 
 
+async def test_asignar_un_examen_se_cumple_al_presentarlo(
+    client: AsyncClient, institution: Institution
+) -> None:
+    ctx = await _setup(client, institution)
+    evaluation = await client.post(
+        "/evaluations",
+        json={
+            "group_id": ctx["group_id"],
+            "title": "Parcial 1",
+            "mode": "cumulative",
+            "is_ranked": False,
+            "exercise_ids": [ctx["exercise_id"]],
+        },
+        headers=auth_headers(ctx["teacher"]),
+    )
+    assert evaluation.status_code == 201, evaluation.text
+    evaluation_id = evaluation.json()["id"]
+
+    created = await client.post(
+        f"/groups/{ctx['group_id']}/assignments",
+        json={"title": "Presenta el parcial", "evaluation_id": evaluation_id},
+        headers=auth_headers(ctx["teacher"]),
+    )
+    assert created.status_code == 201, created.text
+
+    before = (await client.get("/assignments/me", headers=auth_headers(ctx["student"]))).json()
+    assert before[0]["done"] is False
+
+    take = await client.get(
+        f"/evaluations/{evaluation_id}/take", headers=auth_headers(ctx["student"])
+    )
+    evaluation_exercise_id = take.json()["exercises"][0]["evaluation_exercise_id"]
+    await client.post(
+        f"/evaluations/{evaluation_id}/answers",
+        json={"evaluation_exercise_id": evaluation_exercise_id, "answer": {"value": True}},
+        headers=auth_headers(ctx["student"]),
+    )
+    submitted = await client.post(
+        f"/evaluations/{evaluation_id}/submit", headers=auth_headers(ctx["student"])
+    )
+    assert submitted.status_code == 200, submitted.text
+
+    after = (await client.get("/assignments/me", headers=auth_headers(ctx["student"]))).json()
+    assert after[0]["done"] is True
+    assert after[0]["evaluation_id"] == evaluation_id
+
+
+async def test_asignar_un_taller_nunca_se_marca_cumplido_todavia(
+    client: AsyncClient, institution: Institution
+) -> None:
+    """No hay señal de "lo leyó" en la plataforma — ver el docstring del
+    modelo. Esto documenta el límite actual, no un objetivo."""
+    ctx = await _setup(client, institution)
+
+    folder = await client.post(
+        f"/groups/{ctx['group_id']}/guide-folders",
+        json={"name": "Guías 10-1"},
+        headers=auth_headers(ctx["teacher"]),
+    )
+    template = await client.post(
+        "/guide-templates",
+        json={
+            "name": "Guía de laboratorio",
+            "sections": [{"heading": "Objetivos", "instructions": "Lista 3 objetivos."}],
+            "tone": "cercano",
+            "target_level": "basico",
+        },
+        headers=auth_headers(ctx["teacher"]),
+    )
+    guide = await client.post(
+        "/ai/guides/generate",
+        json={
+            "folder_id": folder.json()["id"],
+            "template_id": template.json()["id"],
+            "topic_id": ctx["topic_id"],
+        },
+        headers=auth_headers(ctx["teacher"]),
+    )
+    assert guide.status_code == 202, guide.text
+    guide_id = guide.json()["id"]
+
+    created = await client.post(
+        f"/groups/{ctx['group_id']}/assignments",
+        json={"title": "Lee la guía", "guide_id": guide_id},
+        headers=auth_headers(ctx["teacher"]),
+    )
+    assert created.status_code == 201, created.text
+
+    body = (await client.get("/assignments/me", headers=auth_headers(ctx["student"]))).json()
+    assert body[0]["done"] is False
+    assert body[0]["guide_id"] == guide_id
+    assert body[0]["total_exercises"] == 0
+
+
 async def test_quitar_la_fecha_limite_es_posible(
     client: AsyncClient, institution: Institution
 ) -> None:

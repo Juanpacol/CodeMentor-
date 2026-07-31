@@ -91,25 +91,6 @@ class TraceVariablesGrader:
         return GradeResult(score=score, correct=score == 1.0, detail={"matching_steps": matches})
 
 
-class OrderLinesGrader:
-    def grade(self, content: dict[str, Any], answer: dict[str, Any]) -> GradeResult:
-        expected_order: list[int] = content.get("correct_order", [])
-        submitted_order: list[int] | None = answer.get("order")
-
-        if not expected_order:
-            return GradeResult(score=0.0, correct=False, detail={"reason": "sin orden esperado"})
-        if not submitted_order:
-            return GradeResult(score=0.0, correct=False, detail={"reason": "respuesta vacía"})
-
-        matches = sum(
-            1
-            for i, expected in enumerate(expected_order)
-            if i < len(submitted_order) and submitted_order[i] == expected
-        )
-        score = matches / len(expected_order)
-        return GradeResult(score=score, correct=score == 1.0)
-
-
 class ArguedResponseGrader:
     """Open-ended responses always require a teacher's judgment (RF-12) — this
     plugin never asserts correctness, it only decides whether the queue needs

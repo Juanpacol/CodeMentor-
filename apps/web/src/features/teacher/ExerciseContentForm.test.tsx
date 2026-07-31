@@ -5,8 +5,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { ExerciseContentForm } from './ExerciseContentForm'
 import type { ExerciseType } from '../../components/exercises/registry'
 
-function Controlled({ type, onCommit }: { type: ExerciseType; onCommit: (v: object) => void }) {
-  const [value, setValue] = useState<Record<string, unknown>>({})
+function Controlled({
+  type,
+  onCommit,
+  initialValue = {},
+}: {
+  type: ExerciseType
+  onCommit: (v: object) => void
+  initialValue?: Record<string, unknown>
+}) {
+  const [value, setValue] = useState<Record<string, unknown>>(initialValue)
   return (
     <ExerciseContentForm
       type={type}
@@ -41,15 +49,6 @@ describe('ExerciseContentForm', () => {
     )
   })
 
-  it('order_lines: parses comma-separated correct_order into numbers', () => {
-    const onCommit = vi.fn()
-    render(<Controlled type="order_lines" onCommit={onCommit} />)
-    fireEvent.change(screen.getByPlaceholderText('1,0,2'), { target: { value: '1,0,2' } })
-    expect(onCommit).toHaveBeenLastCalledWith(
-      expect.objectContaining({ correct_order: [1, 0, 2] }),
-    )
-  })
-
   it('trace_variables: valid JSON updates expected_trace, invalid JSON shows an error and does not commit', () => {
     const onCommit = vi.fn()
     render(<Controlled type="trace_variables" onCommit={onCommit} />)
@@ -73,5 +72,35 @@ describe('ExerciseContentForm', () => {
       target: { value: 'Explica la recursión' },
     })
     expect(onCommit).toHaveBeenLastCalledWith({ prompt: 'Explica la recursión' })
+  })
+
+  it('fill_code: sin código todavía, no ofrece "Reemplazar código"', () => {
+    const onCommit = vi.fn()
+    render(<Controlled type="fill_code" onCommit={onCommit} />)
+    expect(screen.queryByRole('button', { name: 'Reemplazar código' })).not.toBeInTheDocument()
+  })
+
+  it('fill_code: con código ya cargado, ofrece "Reemplazar código"', () => {
+    const onCommit = vi.fn()
+    render(
+      <Controlled
+        type="fill_code"
+        onCommit={onCommit}
+        initialValue={{ code_template: '___ saludar():\n    print("Hola")' }}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Reemplazar código' })).toBeInTheDocument()
+  })
+
+  it('live_code: el editor de código inicial usa el lenguaje del ejercicio', () => {
+    const onCommit = vi.fn()
+    render(
+      <Controlled
+        type="live_code"
+        onCommit={onCommit}
+        initialValue={{ language: 'python', starter_code: 'print("hola")' }}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Reemplazar código' })).toBeInTheDocument()
   })
 })
