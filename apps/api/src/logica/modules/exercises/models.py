@@ -20,7 +20,6 @@ class ExerciseType(enum.StrEnum):
     fill_code = "fill_code"
     find_error = "find_error"
     trace_variables = "trace_variables"
-    order_lines = "order_lines"
     argued_response = "argued_response"
     live_code = "live_code"
 

@@ -3,7 +3,6 @@ import { FillCodeRenderer } from './FillCodeRenderer'
 import { FindErrorRenderer } from './FindErrorRenderer'
 import { LiveCodeRenderer } from './LiveCodeRenderer'
 import { MultipleChoiceRenderer } from './MultipleChoiceRenderer'
-import { OrderLinesRenderer } from './OrderLinesRenderer'
 import { TraceVariablesRenderer } from './TraceVariablesRenderer'
 import { TrueFalseRenderer } from './TrueFalseRenderer'
 import type { ExerciseRendererProps } from './types'
@@ -14,7 +13,6 @@ export type ExerciseType =
   | 'fill_code'
   | 'find_error'
   | 'trace_variables'
-  | 'order_lines'
   | 'argued_response'
   | 'live_code'
 
@@ -29,7 +27,6 @@ export const exerciseRenderers: Record<
   fill_code: FillCodeRenderer as never,
   find_error: FindErrorRenderer as never,
   trace_variables: TraceVariablesRenderer as never,
-  order_lines: OrderLinesRenderer as never,
   argued_response: ArguedResponseRenderer as never,
   live_code: LiveCodeRenderer as never,
 }
@@ -40,7 +37,6 @@ export const EXERCISE_TYPE_LABELS: Record<ExerciseType, string> = {
   fill_code: 'Completar código',
   find_error: 'Encontrar el error',
   trace_variables: 'Trazado de variables',
-  order_lines: 'Ordenar líneas',
   argued_response: 'Respuesta argumentada',
   live_code: 'Reto de código en vivo',
 }

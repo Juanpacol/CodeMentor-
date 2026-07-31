@@ -159,38 +159,3 @@ async def test_integrity_check_rejects_non_live_code_exercise(
     assert resp.status_code == 422
 
 
-async def test_integrity_disabled_for_group_blocks_check(
-    client: AsyncClient, institution: Institution, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    domain = institution.email_domains[0]
-    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
-    student_access, _ = await register_and_login(client, email=f"est@{domain}", role="student")
-
-    evaluation_id, answer_id = await _setup_live_code_evaluation(
-        client, teacher_access, student_access
-    )
-
-    groups = await client.get("/groups/mine", headers=auth_headers(teacher_access))
-    group_id = groups.json()[0]["id"]
-    await client.put(
-        f"/ai/groups/{group_id}/agents/code_integrity",
-        json={"enabled": False},
-        headers=auth_headers(teacher_access),
-    )
-
-    called = False
-
-    async def fake(task: str, messages: list[dict[str, str]]) -> CompletionResult:
-        nonlocal called
-        called = True
-        return CompletionResult(text="{}", model="x", prompt_tokens=0, completion_tokens=0)
-
-    monkeypatch.setattr("logica.ai.harness.harness.router_complete", fake)
-
-    resp = await client.post(
-        "/ai/integrity/check",
-        json={"evaluation_id": evaluation_id, "answer_id": answer_id},
-        headers=auth_headers(teacher_access),
-    )
-    assert resp.status_code == 403
-    assert called is False

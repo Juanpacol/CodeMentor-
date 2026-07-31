@@ -170,3 +170,13 @@ async def archive_guide(
     guide = await service.archive_guide(db, user, guide_id)
     await db.commit()
     return guide
+
+
+@router.delete("/guides/{guide_id}", status_code=204)
+async def delete_guide(
+    guide_id: uuid.UUID,
+    user: User = Depends(RequireTeacher),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    await service.delete_guide(db, user, guide_id)
+    await db.commit()

@@ -69,6 +69,8 @@ export const ApprovalsInboxPage = lazy(() =>
 export const ActivityLogPage = lazy(() =>
   import('./features/teacher/ActivityLogPage').then((m) => ({ default: m.ActivityLogPage })),
 )
-export const AcademicPeriodsPage = lazy(() =>
-  import('./features/admin/AcademicPeriodsPage').then((m) => ({ default: m.AcademicPeriodsPage })),
+export const PendingAssignmentsPage = lazy(() =>
+  import('./features/teacher/PendingAssignmentsPage').then((m) => ({
+    default: m.PendingAssignmentsPage,
+  })),
 )

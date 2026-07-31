@@ -6,7 +6,6 @@ from logica.modules.grading.plugins import (
     FillCodeGrader,
     FindErrorGrader,
     MultipleChoiceGrader,
-    OrderLinesGrader,
     TraceVariablesGrader,
     TrueFalseGrader,
 )
@@ -18,7 +17,6 @@ EXERCISE_TYPE_REGISTRY: dict[ExerciseType, ExerciseGrader] = {
     ExerciseType.fill_code: FillCodeGrader(),
     ExerciseType.find_error: FindErrorGrader(),
     ExerciseType.trace_variables: TraceVariablesGrader(),
-    ExerciseType.order_lines: OrderLinesGrader(),
     ExerciseType.argued_response: ArguedResponseGrader(),
 }
 

@@ -291,6 +291,59 @@ async def test_cannot_publish_a_guide_without_content(
     assert resp.status_code == 422
 
 
+async def test_delete_removes_a_draft_guide(
+    client: AsyncClient, institution: Institution, arq_pool: _FakeArqPool
+) -> None:
+    teacher_access, group = await _teacher_with_group(client, institution)
+    language_id = await create_language(client, teacher_access)
+    topic_id = await create_topic(client, teacher_access, language_id)
+    folder_id = await _folder(client, teacher_access, group["id"])
+    template = await _template(client, teacher_access)
+
+    created = await client.post(
+        "/ai/guides/generate",
+        json={"folder_id": folder_id, "template_id": template["id"], "topic_id": topic_id},
+        headers=auth_headers(teacher_access),
+    )
+    guide_id = created.json()["id"]
+    await _force_draft(client, teacher_access, guide_id)
+
+    resp = await client.delete(f"/guides/{guide_id}", headers=auth_headers(teacher_access))
+    assert resp.status_code == 204
+
+    follow_up = await client.get(f"/guides/{guide_id}", headers=auth_headers(teacher_access))
+    assert follow_up.status_code == 404
+
+
+async def test_delete_rejects_a_published_guide(
+    client: AsyncClient, institution: Institution, arq_pool: _FakeArqPool
+) -> None:
+    teacher_access, group = await _teacher_with_group(client, institution)
+    language_id = await create_language(client, teacher_access)
+    topic_id = await create_topic(client, teacher_access, language_id)
+    folder_id = await _folder(client, teacher_access, group["id"])
+    template = await _template(client, teacher_access)
+
+    created = await client.post(
+        "/ai/guides/generate",
+        json={"folder_id": folder_id, "template_id": template["id"], "topic_id": topic_id},
+        headers=auth_headers(teacher_access),
+    )
+    guide_id = created.json()["id"]
+    await _force_draft(client, teacher_access, guide_id)
+
+    published = await client.post(
+        f"/guides/{guide_id}/publish", headers=auth_headers(teacher_access)
+    )
+    assert published.status_code == 200
+
+    resp = await client.delete(f"/guides/{guide_id}", headers=auth_headers(teacher_access))
+    assert resp.status_code == 409
+
+    still_there = await client.get(f"/guides/{guide_id}", headers=auth_headers(teacher_access))
+    assert still_there.status_code == 200
+
+
 async def test_teacher_of_another_group_cannot_read_the_guide(
     client: AsyncClient, institution: Institution, arq_pool: _FakeArqPool
 ) -> None:

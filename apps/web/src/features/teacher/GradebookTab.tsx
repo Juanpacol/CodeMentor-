@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { BarList, type BarListItem } from '../../components/ui/BarList'
+import { Callout } from '../../components/ui/Callout'
 import { ChartCard } from '../../components/ui/ChartCard'
 import { cn } from '../../lib/cn'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -80,6 +81,8 @@ export function GradebookTab({ groupId }: { groupId: string }) {
   }
 
   const meanItems = evaluationMeans(data)
+  const weightSum = data.evaluations.reduce((sum, e) => sum + (e.weight_percent ?? 0), 0)
+  const anyWeighted = data.evaluations.some((e) => e.weight_percent != null)
 
   // Rango real de notas por evaluación (columna), para las bandas ordinales
   // de las celdas — ver ordinalStep().
@@ -95,6 +98,14 @@ export function GradebookTab({ groupId }: { groupId: string }) {
 
   return (
     <div className="flex flex-col gap-6">
+      {anyWeighted && weightSum !== 100 && (
+        <Callout tone="warning">
+          Las evaluaciones con porcentaje asignado suman {weightSum}%
+          {weightSum > 100 ? ', ya pasaste el 100%' : ' — todavía no llegan a 100%'}. La nota
+          acumulada de abajo solo cuenta lo que ya tiene porcentaje.
+        </Callout>
+      )}
+
       <ChartCard
         title="Media por evaluación"
         tableHeaders={['Evaluación', 'Media']}
@@ -133,11 +144,21 @@ export function GradebookTab({ groupId }: { groupId: string }) {
                     title={evaluation.title}
                   >
                     {evaluation.title}
+                    {evaluation.weight_percent != null && (
+                      <span className="ml-1 font-normal text-ink-secondary">
+                        ({evaluation.weight_percent}%)
+                      </span>
+                    )}
                   </th>
                 ))}
                 <th scope="col" className="px-4 py-3 text-left font-semibold text-ink">
                   Promedio
                 </th>
+                {anyWeighted && (
+                  <th scope="col" className="px-4 py-3 text-left font-semibold text-ink">
+                    Nota acumulada
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -181,6 +202,13 @@ export function GradebookTab({ groupId }: { groupId: string }) {
                         ? student.avg_evaluation_score.toFixed(2)
                         : '—'}
                     </td>
+                    {anyWeighted && (
+                      <td className="px-4 py-3 font-medium text-ink">
+                        {student.weighted_average != null
+                          ? `${student.weighted_average.toFixed(1)}%`
+                          : '—'}
+                      </td>
+                    )}
                   </tr>
                 )
               })}

@@ -9,7 +9,6 @@ from logica.modules.reports.models import ReportFormat, ReportStatus
 
 class ReportRequest(BaseModel):
     format: ReportFormat
-    period_id: uuid.UUID | None = None
 
 
 class ReportJobOut(BaseModel):
@@ -28,6 +27,7 @@ class GradebookEvaluationOut(BaseModel):
     title: str
     mode: EvaluationMode
     is_ranked: bool
+    weight_percent: float | None
 
     model_config = {"from_attributes": True}
 
@@ -43,6 +43,7 @@ class GradebookStudentOut(BaseModel):
     scores: list[GradebookScoreOut]
     evaluations_submitted: int
     avg_evaluation_score: float | None
+    weighted_average: float | None
 
 
 class GradebookOut(BaseModel):

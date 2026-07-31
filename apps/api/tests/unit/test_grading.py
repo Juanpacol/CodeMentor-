@@ -151,36 +151,6 @@ class TestTraceVariables:
         assert result.correct is True
 
 
-class TestOrderLines:
-    def test_exact_order_correct(self) -> None:
-        result = grade_exercise(
-            ExerciseType.order_lines, {"correct_order": [2, 0, 1]}, {"order": [2, 0, 1]}
-        )
-        assert result.correct is True
-        assert result.score == 1.0
-
-    def test_partial_order(self) -> None:
-        result = grade_exercise(
-            ExerciseType.order_lines, {"correct_order": [0, 1, 2]}, {"order": [0, 2, 1]}
-        )
-        assert result.correct is False
-        assert result.score == pytest.approx(1 / 3)
-
-    def test_empty_answer(self) -> None:
-        result = grade_exercise(
-            ExerciseType.order_lines, {"correct_order": [0, 1, 2]}, {"order": None}
-        )
-        assert result.score == 0.0
-
-    @given(order=st.permutations([0, 1, 2, 3, 4]))
-    def test_any_permutation_matched_against_itself_is_perfect(self, order: list[int]) -> None:
-        result = grade_exercise(
-            ExerciseType.order_lines, {"correct_order": order}, {"order": order}
-        )
-        assert result.score == 1.0
-        assert result.correct is True
-
-
 class TestArguedResponse:
     def test_nonempty_answer_needs_manual_review(self) -> None:
         result = grade_exercise(

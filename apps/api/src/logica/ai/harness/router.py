@@ -47,6 +47,7 @@ TASK_TIERS: dict[str, TaskTier] = {
     "exercise_generation": "capable",
     "grading_suggestion": "capable",
     "code_integrity": "capable",
+    "rubric_topic_extraction": "capable",
     # Fase 16: una guía es material de referencia que el estudiante lee tal cual
     # (a diferencia de una pista, que es desechable), así que va al tier capaz
     # aunque cueste más — el docente igual la revisa, pero corregir prosa mala

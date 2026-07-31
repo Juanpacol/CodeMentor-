@@ -15,7 +15,7 @@ from logica.modules.assignments.service import list_my_assignments
 from logica.modules.exercises.models import Exercise
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.progress import repository
-from logica.modules.progress.models import AcademicPeriod, Badge, BadgeCriteria, StudentBadge
+from logica.modules.progress.models import Badge, BadgeCriteria, StudentBadge
 from logica.modules.progress.schemas import (
     BadgeOut,
     DailyActivityOut,
@@ -27,7 +27,7 @@ from logica.modules.progress.schemas import (
     TodaySummaryOut,
     TopicMasteryOut,
 )
-from logica.modules.users.models import Role, User
+from logica.modules.users.models import User
 from logica.modules.users.repository import get_user_by_id
 
 # RF-29: umbrales elegidos para que una insignia signifique algo (no se gana
@@ -467,32 +467,10 @@ async def get_lagging_students(
     return lagging
 
 
-def _ensure_teacher(user: User) -> None:
-    if user.role not in (Role.teacher, Role.admin):
-        raise PermissionDeniedError(
-            "Solo un docente o administrador puede administrar periodos académicos"
-        )
-
-
-async def create_academic_period(
-    db: AsyncSession, teacher: User, name: str, start_date: date, end_date: date
-) -> AcademicPeriod:
-    _ensure_teacher(teacher)
-    return await repository.create_academic_period(
-        db, teacher.institution_id, name, start_date, end_date
-    )
-
-
-async def list_academic_periods(db: AsyncSession, user: User) -> list[AcademicPeriod]:
-    return await repository.list_academic_periods(db, user.institution_id)
-
-
 __all__ = [
-    "create_academic_period",
     "ensure_default_badges",
     "evaluate_and_award_badges",
     "get_lagging_students",
     "get_student_progress",
     "lagging_reason_for_student",
-    "list_academic_periods",
 ]

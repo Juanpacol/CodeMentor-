@@ -52,6 +52,7 @@ async def create_evaluation(
         payload.duration_minutes,
         payload.is_ranked,
         payload.exercise_ids,
+        payload.weight_percent,
     )
     await db.commit()
     return EvaluationOut.model_validate(evaluation)

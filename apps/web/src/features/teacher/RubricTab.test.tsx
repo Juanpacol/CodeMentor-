@@ -82,11 +82,11 @@ function stubApi(routes: Record<string, unknown>, calls?: Call[]) {
   )
 }
 
-function renderTab() {
+function renderTab(groupId = 'group-1') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <RubricTab groupId="group-1" />
+      <RubricTab groupId={groupId} />
     </QueryClientProvider>,
   )
 }
@@ -163,6 +163,40 @@ describe('RubricTab', () => {
 
     expect(screen.getByText(/Máximo 15 temas por corrida/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generar contenido' })).toBeDisabled()
+  })
+
+  it('rellena el textarea con los temas extraídos de un documento subido', async () => {
+    stubApi({
+      'rubric-runs': [],
+      languages: LANGUAGES,
+      'guide-templates': TEMPLATES,
+      'rubric-runs/extract-topics': {
+        items: [
+          { topic_name: 'Estructuras condicionales', level: 'basico', order_index: 0 },
+          { topic_name: 'Ciclos anidados', level: 'intermedio', order_index: 1 },
+        ],
+      },
+    })
+    renderTab('group-upload')
+    await waitFor(() => expect(screen.getByLabelText('Temas, uno por línea')).toBeInTheDocument())
+
+    const user = userEvent.setup()
+    const file = new File(['contenido'], 'rubrica.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, file)
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Temas, uno por línea')).toHaveValue(
+        'Estructuras condicionales | basico\nCiclos anidados | intermedio',
+      ),
+    )
+    // El textarea sigue siendo editable: el docente puede corregir antes de generar.
+    await user.type(screen.getByLabelText('Temas, uno por línea'), '\nArreglos')
+    expect(screen.getByLabelText('Temas, uno por línea')).toHaveValue(
+      'Estructuras condicionales | basico\nCiclos anidados | intermedio\nArreglos',
+    )
   })
 
   it('muestra el progreso por tema de la corrida en curso', async () => {

@@ -18,8 +18,10 @@ from logica.modules.assignments import repository
 from logica.modules.assignments.models import Assignment
 from logica.modules.assignments.schemas import StudentAssignmentOut
 from logica.modules.content.repository import get_topic
+from logica.modules.evaluations.repository import get_evaluation
 from logica.modules.exercises.repository import get_exercise
 from logica.modules.groups.service import get_group_with_access
+from logica.modules.guides.repository import get_guide
 from logica.modules.users.models import Role, User
 
 logger = structlog.get_logger()
@@ -45,12 +47,14 @@ async def create_assignment(
     title: str,
     topic_id: uuid.UUID | None,
     exercise_id: uuid.UUID | None,
+    evaluation_id: uuid.UUID | None,
+    guide_id: uuid.UUID | None,
     due_at: datetime | None,
 ) -> Assignment:
     await _ensure_teaches(db, user, group_id)
 
     # Se valida la tenencia del objetivo, no solo su existencia: sin esto un
-    # docente podría asignar el tema de otra institución cuyo id conociera.
+    # docente podría asignar contenido de otra institución cuyo id conociera.
     if topic_id is not None:
         topic = await get_topic(db, topic_id)
         if topic is None or topic.institution_id != user.institution_id:
@@ -61,6 +65,14 @@ async def create_assignment(
         exercise = await get_exercise(db, exercise_id)
         if exercise is None or exercise.institution_id != user.institution_id:
             raise NotFoundError("Ejercicio no encontrado")
+    if evaluation_id is not None:
+        evaluation = await get_evaluation(db, evaluation_id)
+        if evaluation is None or evaluation.institution_id != user.institution_id:
+            raise NotFoundError("Evaluación no encontrada")
+    if guide_id is not None:
+        guide = await get_guide(db, user.institution_id, guide_id)
+        if guide is None:
+            raise NotFoundError("Guía no encontrada")
 
     assignment = Assignment(
         institution_id=user.institution_id,
@@ -69,6 +81,8 @@ async def create_assignment(
         title=title,
         topic_id=topic_id,
         exercise_id=exercise_id,
+        evaluation_id=evaluation_id,
+        guide_id=guide_id,
         due_at=due_at,
     )
     db.add(assignment)
@@ -133,16 +147,32 @@ async def list_my_assignments(db: AsyncSession, student: User) -> list[StudentAs
         return []
 
     solved = await repository.solved_exercise_ids(db, student.id)
+    submitted_evaluations = await repository.submitted_evaluation_ids(db, student.id)
     out: list[StudentAssignmentOut] = []
 
     for assignment, group_name in rows:
-        if assignment.exercise_id is not None:
-            targets = {assignment.exercise_id}
+        if assignment.evaluation_id is not None:
+            # Examen: "cumplida" es "ya la presentó", no un conteo de
+            # ejercicios — la evaluación se presenta entera de una vez.
+            done = assignment.evaluation_id in submitted_evaluations
+            total, solved_count = 1, int(done)
+        elif assignment.guide_id is not None:
+            # Taller: sin señal de lectura en la plataforma todavía (ver
+            # docstring del modelo) — queda pendiente hasta que exista una.
+            done, total, solved_count = False, 0, 0
         else:
-            assert assignment.topic_id is not None  # el CheckConstraint lo garantiza
-            targets = await repository.exercise_ids_for_topic(db, assignment.topic_id)
+            if assignment.exercise_id is not None:
+                targets = {assignment.exercise_id}
+            else:
+                assert assignment.topic_id is not None  # el CheckConstraint lo garantiza
+                targets = await repository.exercise_ids_for_topic(db, assignment.topic_id)
+            solved_count = len(targets & solved)
+            total = len(targets)
+            # Un tema sin ejercicios no está "cumplido": no hay nada que
+            # resolver todavía, y decir que sí le escondería al estudiante
+            # que el docente asignó algo que aún no tiene contenido.
+            done = total > 0 and solved_count == total
 
-        solved_here = len(targets & solved)
         out.append(
             StudentAssignmentOut(
                 id=assignment.id,
@@ -151,13 +181,12 @@ async def list_my_assignments(db: AsyncSession, student: User) -> list[StudentAs
                 title=assignment.title,
                 topic_id=assignment.topic_id,
                 exercise_id=assignment.exercise_id,
+                evaluation_id=assignment.evaluation_id,
+                guide_id=assignment.guide_id,
                 due_at=assignment.due_at,
-                # Un tema sin ejercicios no está "cumplido": no hay nada que
-                # resolver todavía, y decir que sí le escondería al estudiante
-                # que el docente asignó algo que aún no tiene contenido.
-                done=len(targets) > 0 and solved_here == len(targets),
-                total_exercises=len(targets),
-                solved_exercises=solved_here,
+                done=done,
+                total_exercises=total,
+                solved_exercises=solved_count,
             )
         )
 

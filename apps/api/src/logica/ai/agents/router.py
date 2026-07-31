@@ -7,19 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.ai.agents import (
     code_integrity,
-    config_service,
     exercise_generator,
     grading_assistant,
     learning_analytics,
     pending_approvals,
     tutor,
 )
-from logica.ai.agents.models import AgentName
 from logica.ai.agents.repository import list_alerts_for_evaluation
 from logica.ai.agents.schemas import (
-    AgentConfigOut,
-    AgentToggleRequest,
     ExerciseGenerateRequest,
+    ExerciseVariantOut,
+    ExerciseVariantsRequest,
     GradingSuggestionOut,
     GradingSuggestionRequest,
     GroupSummaryOut,
@@ -47,29 +45,6 @@ from logica.modules.guides.schemas import GuideGenerateRequest, GuideOut
 from logica.modules.users.models import User
 
 router = APIRouter(prefix="/ai", tags=["ai-agents"])
-
-
-@router.get("/groups/{group_id}/agents", response_model=list[AgentConfigOut])
-async def list_agents(
-    group_id: uuid.UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[AgentConfigOut]:
-    statuses = await config_service.list_agent_status(db, user, group_id)
-    return [AgentConfigOut(agent_name=name, enabled=enabled) for name, enabled in statuses.items()]
-
-
-@router.put("/groups/{group_id}/agents/{agent_name}", response_model=AgentConfigOut)
-async def toggle_agent(
-    group_id: uuid.UUID,
-    agent_name: AgentName,
-    payload: AgentToggleRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> AgentConfigOut:
-    config = await config_service.set_agent_enabled(db, user, group_id, agent_name, payload.enabled)
-    await db.commit()
-    return AgentConfigOut(agent_name=config.agent_name, enabled=config.enabled)
 
 
 @router.post("/tutor/hint", response_model=TutorMessageOut, status_code=201)
@@ -127,6 +102,25 @@ async def generate_exercise(
     )
     await db.commit()
     return ExerciseOut.model_validate(exercise)
+
+
+@router.post("/exercises/{exercise_id}/variants", response_model=list[ExerciseVariantOut])
+@user_limiter.limit("10/minute")
+async def generate_exercise_variants(
+    request: Request,
+    exercise_id: uuid.UUID,
+    payload: ExerciseVariantsRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> list[ExerciseVariantOut]:
+    """Preview puro (ítem 21): no crea nada, el docente acepta/edita/descarta
+    cada variante y solo las aceptadas se crean vía `POST /exercises`."""
+    variants = await exercise_generator.generate_exercise_variants(
+        db, redis, user, exercise_id=exercise_id, count=payload.count
+    )
+    await db.commit()
+    return [ExerciseVariantOut(title=v.title, content=v.content) for v in variants]
 
 
 @router.post("/guides/generate", response_model=GuideOut, status_code=202)

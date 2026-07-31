@@ -17,8 +17,6 @@ from logica.core.errors import NotFoundError, PermissionDeniedError
 from logica.modules.evaluations.models import Evaluation
 from logica.modules.groups.models import Group
 from logica.modules.groups.service import get_group_with_access
-from logica.modules.progress.models import AcademicPeriod
-from logica.modules.progress.repository import get_academic_period
 from logica.modules.progress.service import lagging_reason_for_student
 from logica.modules.reports import repository
 from logica.modules.reports.models import ReportFormat, ReportJob, ReportStatus
@@ -34,19 +32,13 @@ async def request_group_report(
     teacher: User,
     group_id: uuid.UUID,
     format: ReportFormat,
-    period_id: uuid.UUID | None,
 ) -> ReportJob:
     _, is_teacher_view = await get_group_with_access(db, teacher, group_id)
     if not is_teacher_view:
         raise PermissionDeniedError("Solo un docente o administrador puede exportar reportes")
 
-    if period_id is not None:
-        period = await get_academic_period(db, period_id)
-        if period is None or period.institution_id != teacher.institution_id:
-            raise NotFoundError("Periodo académico no encontrado")
-
     job = await repository.create_report_job(
-        db, teacher.institution_id, teacher.id, group_id, format, period_id
+        db, teacher.institution_id, teacher.id, group_id, format
     )
     await db.flush()
     await arq_pool.enqueue_job("generate_group_report_job", str(job.id))
@@ -59,7 +51,6 @@ def _status_label(reason: str | None) -> str:
 
 def _build_xlsx(
     group: Group,
-    period: AcademicPeriod | None,
     rows: list[StudentReportRow],
     lagging_reasons: dict[uuid.UUID, str | None],
 ) -> bytes:
@@ -71,8 +62,6 @@ def _build_xlsx(
     ws.title = "Progreso"
     ws.append([f"Reporte de progreso — {group.name}"])
     ws.cell(row=1, column=1).font = Font(bold=True, size=14)
-    if period is not None:
-        ws.append([f"Periodo: {period.name} ({period.start_date} a {period.end_date})"])
     ws.append([])
 
     headers = [
@@ -111,7 +100,6 @@ def _build_xlsx(
 
 def _build_pdf(
     group: Group,
-    period: AcademicPeriod | None,
     rows: list[StudentReportRow],
     lagging_reasons: dict[uuid.UUID, str | None],
 ) -> bytes:
@@ -121,11 +109,6 @@ def _build_pdf(
     # every other report/xlsx test collectible without them installed.
     from weasyprint import HTML
 
-    period_html = (
-        f"<p>Periodo: {period.name} ({period.start_date} a {period.end_date})</p>"
-        if period is not None
-        else ""
-    )
     rows_html = "".join(
         f"<tr><td>{r.full_name}</td><td>{r.email}</td><td>{r.practice_total}</td>"
         f"<td>{f'{r.practice_correct / r.practice_total:.0%}' if r.practice_total else '—'}</td>"
@@ -144,7 +127,6 @@ def _build_pdf(
     </style></head>
     <body>
         <h1>Reporte de progreso — {group.name}</h1>
-        {period_html}
         <table>
             <tr><th>Estudiante</th><th>Correo</th><th>Envíos</th><th>Precisión</th>
                 <th>Evaluaciones</th><th>Promedio</th><th>Insignias</th><th>Estado</th></tr>
@@ -188,13 +170,8 @@ async def generate_group_report(db: AsyncSession, report_job_id: uuid.UUID) -> N
         group = await db.get(Group, job.group_id)
         if group is None:
             raise NotFoundError("Grupo no encontrado")
-        period = await get_academic_period(db, job.period_id) if job.period_id else None
 
-        period_start = period.start_date if period else None
-        period_end = period.end_date if period else None
-        rows = await repository.student_report_rows(
-            db, job.group_id, period_start=period_start, period_end=period_end
-        )
+        rows = await repository.student_report_rows(db, job.group_id)
         # RF-15 reusado en el export: la misma señal de "quién está atascado"
         # que ya ve el docente en pantalla (AnalyticsTab), ahora también en el
         # archivo — sin inventar una métrica nueva.
@@ -204,9 +181,9 @@ async def generate_group_report(db: AsyncSession, report_job_id: uuid.UUID) -> N
         }
 
         content = (
-            _build_xlsx(group, period, rows, lagging_reasons)
+            _build_xlsx(group, rows, lagging_reasons)
             if job.format == ReportFormat.xlsx
-            else _build_pdf(group, period, rows, lagging_reasons)
+            else _build_pdf(group, rows, lagging_reasons)
         )
 
         # noqa comments below: this runs in the arq worker, not on a request

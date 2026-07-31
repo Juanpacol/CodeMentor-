@@ -15,6 +15,7 @@ class EvaluationCreateRequest(BaseModel):
     up_to_topic_id: uuid.UUID | None = None
     duration_minutes: int | None = Field(default=None, gt=0)
     is_ranked: bool = False
+    weight_percent: float | None = Field(default=None, ge=0, le=100)
     exercise_ids: list[uuid.UUID] = Field(min_length=1)
 
 
@@ -28,6 +29,7 @@ class EvaluationOut(BaseModel):
     up_to_topic_id: uuid.UUID | None
     duration_minutes: int | None
     is_ranked: bool
+    weight_percent: float | None
 
     model_config = {"from_attributes": True}
 

@@ -1,6 +1,6 @@
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from logica.modules.evaluations.models import (
     AttemptStatus,
     Evaluation,
     EvaluationAttempt,
+    EvaluationExercise,
     PracticeSubmission,
 )
 from logica.modules.groups.models import GroupMembership
@@ -42,6 +43,11 @@ class GradebookStudentRow:
     scores: list[GradebookScore]
     evaluations_submitted: int
     avg_evaluation_score: float | None
+    # Suma de (nota/máximo) × peso, solo sobre las evaluaciones con
+    # `weight_percent` definido y con intento presentado — None si ninguna
+    # evaluación del grupo tiene peso asignado o el estudiante no ha
+    # presentado ninguna de ellas.
+    weighted_average: float | None
 
 
 async def create_report_job(
@@ -50,14 +56,12 @@ async def create_report_job(
     requested_by_id: uuid.UUID,
     group_id: uuid.UUID,
     format: ReportFormat,
-    period_id: uuid.UUID | None,
 ) -> ReportJob:
     job = ReportJob(
         institution_id=institution_id,
         requested_by_id=requested_by_id,
         group_id=group_id,
         format=format,
-        period_id=period_id,
     )
     db.add(job)
     await db.flush()
@@ -90,9 +94,6 @@ async def mark_failed(db: AsyncSession, job: ReportJob, error_message: str) -> N
 async def student_report_rows(
     db: AsyncSession,
     group_id: uuid.UUID,
-    *,
-    period_start: date | None,
-    period_end: date | None,
 ) -> list[StudentReportRow]:
     """One row per enrolled student (RF-16), each computed with its own small
     queries rather than one large join — the group's roster is small enough
@@ -114,10 +115,6 @@ async def student_report_rows(
         ).where(
             PracticeSubmission.group_id == group_id, PracticeSubmission.student_id == student.id
         )
-        if period_start is not None:
-            practice_stmt = practice_stmt.where(PracticeSubmission.created_at >= period_start)
-        if period_end is not None:
-            practice_stmt = practice_stmt.where(PracticeSubmission.created_at <= period_end)
         practice_total, practice_correct = (await db.execute(practice_stmt)).one()
 
         eval_stmt = (
@@ -130,10 +127,6 @@ async def student_report_rows(
                 EvaluationAttempt.status == AttemptStatus.submitted,
             )
         )
-        if period_start is not None:
-            eval_stmt = eval_stmt.where(EvaluationAttempt.submitted_at >= period_start)
-        if period_end is not None:
-            eval_stmt = eval_stmt.where(EvaluationAttempt.submitted_at <= period_end)
         evaluations_submitted, avg_score = (await db.execute(eval_stmt)).one()
 
         badges_stmt = select(func.count(StudentBadge.id)).where(
@@ -160,8 +153,8 @@ async def gradebook_rows(
     db: AsyncSession, group_id: uuid.UUID
 ) -> tuple[list[Evaluation], list[GradebookStudentRow]]:
     """Vista en vivo de calificaciones (a diferencia de `student_report_rows`,
-    que agrega por periodo para el export async xlsx/pdf): misma definición
-    de `avg_evaluation_score` — promedio de `total_score` sobre intentos
+    usada por el export async xlsx/pdf): misma definición de
+    `avg_evaluation_score` — promedio de `total_score` sobre intentos
     presentados — para que ambas vistas coincidan, pero aquí se conserva el
     detalle por evaluación en vez de solo el promedio."""
     evaluations_stmt = (
@@ -197,6 +190,30 @@ async def gradebook_rows(
             GradebookScore(evaluation_id=evaluation_id, total_score=total_score)
         )
 
+    # Máximo posible por evaluación (suma de `points` de sus ejercicios): hace
+    # falta para normalizar `total_score` (una suma en escala arbitraria, no
+    # 0-100) antes de aplicarle el peso de la evaluación.
+    max_score_stmt = (
+        select(EvaluationExercise.evaluation_id, func.sum(EvaluationExercise.points))
+        .join(Evaluation, Evaluation.id == EvaluationExercise.evaluation_id)
+        .where(Evaluation.group_id == group_id)
+        .group_by(EvaluationExercise.evaluation_id)
+    )
+    max_score_by_evaluation: dict[uuid.UUID, float] = dict(
+        (await db.execute(max_score_stmt)).tuples().all()
+    )
+    weight_by_evaluation = {e.id: e.weight_percent for e in evaluations}
+
+    def _weighted_average(scores: list[GradebookScore]) -> float | None:
+        contributions = []
+        for s in scores:
+            weight = weight_by_evaluation.get(s.evaluation_id)
+            max_score = max_score_by_evaluation.get(s.evaluation_id)
+            if weight is None or not max_score:
+                continue
+            contributions.append((s.total_score / max_score) * weight)
+        return sum(contributions) if contributions else None
+
     rows: list[GradebookStudentRow] = []
     for student in students:
         scores = scores_by_student.get(student.id, [])
@@ -208,6 +225,7 @@ async def gradebook_rows(
                 scores=scores,
                 evaluations_submitted=len(scores),
                 avg_evaluation_score=avg_score,
+                weighted_average=_weighted_average(scores),
             )
         )
     return evaluations, rows

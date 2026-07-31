@@ -11,8 +11,7 @@ from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logica.ai.agents.config_service import ensure_agent_enabled
-from logica.ai.agents.models import AgentName, CodeIntegrityAlert
+from logica.ai.agents.models import CodeIntegrityAlert
 from logica.ai.agents.repository import create_code_integrity_alert
 from logica.ai.harness.structured import complete_structured
 from logica.core.errors import NotFoundError, PermissionDeniedError, ValidationDomainError
@@ -56,7 +55,6 @@ async def check_integrity(
     if evaluation is None or evaluation.institution_id != teacher.institution_id:
         raise NotFoundError("Evaluación no encontrada")
     await get_group_with_access(db, teacher, evaluation.group_id)
-    await ensure_agent_enabled(db, evaluation.group_id, AgentName.code_integrity)
 
     answer = await get_answer_by_id(db, answer_id)
     if answer is None:

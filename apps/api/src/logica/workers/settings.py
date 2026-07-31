@@ -10,10 +10,8 @@ from arq.typing import WorkerCoroutine
 from redis.asyncio import Redis
 from sqlalchemy.exc import SQLAlchemyError
 
-from logica.ai.agents.config_service import is_agent_enabled
 from logica.ai.agents.exercise_generator import generate_exercises_for_guide
 from logica.ai.agents.guide_writer import write_guide
-from logica.ai.agents.models import AgentName
 from logica.config import get_settings
 from logica.core.cancellation import clear_cancel, is_cancelled
 from logica.core.logging import configure_logging
@@ -142,8 +140,8 @@ async def generate_guides_for_enabled_topics_job(ctx: dict[str, Any]) -> int:
     para un grupo cuya carpeta tiene la autogeneración activada.
 
     Nunca decide por el docente: solo actúa sobre carpetas donde él eligió una
-    plantilla (`auto_generate_template_id`), respeta el interruptor por grupo del
-    agente, y lo que produce es un borrador que él publica o descarta."""
+    plantilla (`auto_generate_template_id`), y lo que produce es un borrador
+    que él publica o descarta."""
     session_factory = get_session_factory()
     arq_pool: ArqRedis = ctx["redis"]
     created: list[str] = []
@@ -151,9 +149,6 @@ async def generate_guides_for_enabled_topics_job(ctx: dict[str, Any]) -> int:
 
     async with session_factory() as db:
         for folder in await guides_repository.list_auto_generate_folders(db):
-            if not await is_agent_enabled(db, folder.group_id, AgentName.guide_writer):
-                continue
-
             # `list_auto_generate_folders` ya filtró los NULL; el guard es para
             # que mypy no tenga que confiar en eso.
             if folder.auto_generate_template_id is None:

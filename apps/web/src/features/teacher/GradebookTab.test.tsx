@@ -6,8 +6,8 @@ import { GradebookTab } from './GradebookTab'
 
 const GRADEBOOK_RESPONSE = {
   evaluations: [
-    { id: 'eval-1', title: 'Quiz 1', mode: 'cumulative', is_ranked: false },
-    { id: 'eval-2', title: 'Quiz 2', mode: 'cumulative', is_ranked: false },
+    { id: 'eval-1', title: 'Quiz 1', mode: 'cumulative', is_ranked: false, weight_percent: null },
+    { id: 'eval-2', title: 'Quiz 2', mode: 'cumulative', is_ranked: false, weight_percent: null },
   ],
   students: [
     {
@@ -19,6 +19,7 @@ const GRADEBOOK_RESPONSE = {
       ],
       evaluations_submitted: 2,
       avg_evaluation_score: 0.75,
+      weighted_average: null,
     },
     {
       student_id: 'student-2',
@@ -26,6 +27,7 @@ const GRADEBOOK_RESPONSE = {
       scores: [{ evaluation_id: 'eval-1', total_score: 1 }],
       evaluations_submitted: 1,
       avg_evaluation_score: 1,
+      weighted_average: null,
     },
   ],
 }
@@ -73,6 +75,44 @@ describe('GradebookTab', () => {
 
     // Estudiante B no presentó Quiz 2 -> guion
     expect(within(gradebookTable).getAllByText('—').length).toBeGreaterThan(0)
+  })
+
+  it('muestra el porcentaje, la nota acumulada y avisa si la suma no da 100%', async () => {
+    const weighted = {
+      evaluations: [
+        { id: 'eval-1', title: 'Quiz 1', mode: 'cumulative', is_ranked: false, weight_percent: 30 },
+        { id: 'eval-2', title: 'Quiz 2', mode: 'cumulative', is_ranked: false, weight_percent: 50 },
+      ],
+      students: [
+        {
+          student_id: 'student-1',
+          full_name: 'Estudiante A',
+          scores: [
+            { evaluation_id: 'eval-1', total_score: 1 },
+            { evaluation_id: 'eval-2', total_score: 1 },
+          ],
+          evaluations_submitted: 2,
+          avg_evaluation_score: 1,
+          weighted_average: 80,
+        },
+      ],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(weighted), { status: 200 })),
+    )
+
+    renderTab()
+
+    await waitFor(() => expect(screen.getByText('Estudiante A')).toBeInTheDocument())
+
+    // Suma 30% + 50% = 80%, no 100% -> aviso.
+    expect(screen.getByText(/suman 80%/)).toBeInTheDocument()
+
+    const gradebookTable = screen.getByRole('table', { name: /libro de calificaciones/i })
+    expect(within(gradebookTable).getByText('(30%)')).toBeInTheDocument()
+    expect(within(gradebookTable).getByText('(50%)')).toBeInTheDocument()
+    expect(within(gradebookTable).getByText('80.0%')).toBeInTheDocument()
   })
 
   it('shows an empty state when there are no evaluations yet', async () => {

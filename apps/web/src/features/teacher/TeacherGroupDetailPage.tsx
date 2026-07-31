@@ -4,7 +4,6 @@ import { Link, useParams, useSearchParams } from 'react-router'
 import { Tabs } from '../../components/ui/Tabs'
 import { apiClient, unwrap } from '../../lib/api/client'
 import { qk } from '../../lib/api/queries'
-import { AgentsTab } from './AgentsTab'
 import { AnalyticsTab } from './AnalyticsTab'
 import { AssignmentsTab } from './AssignmentsTab'
 import { CurriculumTab } from './CurriculumTab'
@@ -56,7 +55,6 @@ export function TeacherGroupDetailPage() {
           { value: 'asignaciones', label: 'Asignaciones' },
           { value: 'rubrica', label: 'Rúbrica' },
           { value: 'miembros', label: 'Miembros' },
-          { value: 'agentes', label: 'Agentes IA' },
           { value: 'analitica', label: 'Analítica' },
           { value: 'calificaciones', label: 'Calificaciones' },
           { value: 'guias', label: 'Guías' },
@@ -69,7 +67,6 @@ export function TeacherGroupDetailPage() {
       {tab === 'asignaciones' && <AssignmentsTab groupId={groupId} />}
       {tab === 'rubrica' && <RubricTab groupId={groupId} />}
       {tab === 'miembros' && <MembersTab groupId={groupId} />}
-      {tab === 'agentes' && <AgentsTab groupId={groupId} />}
       {tab === 'analitica' && <AnalyticsTab groupId={groupId} />}
       {tab === 'calificaciones' && <GradebookTab groupId={groupId} />}
       {tab === 'guias' && <GuidesTab groupId={groupId} />}

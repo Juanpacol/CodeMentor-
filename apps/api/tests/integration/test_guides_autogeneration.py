@@ -2,8 +2,8 @@
 
 Lo importante acá no es que el contenido salga bien (eso es
 `test_agent_guide_writer.py`) sino que el cron **no genere de más**: solo sobre
-carpetas donde el docente eligió una plantilla, respetando el interruptor del
-agente, sin duplicar, y con el tope por corrida."""
+carpetas donde el docente eligió una plantilla, sin duplicar, y con el tope
+por corrida."""
 
 import uuid
 from typing import Any
@@ -23,7 +23,6 @@ from logica.modules.guides.models import (
 from logica.modules.users.models import Institution
 from logica.workers import settings as worker_settings
 from tests.integration.conftest import (
-    auth_headers,
     create_group,
     create_language,
     create_topic,
@@ -155,25 +154,6 @@ async def test_locked_topic_is_not_generated(client: AsyncClient, institution: I
 
     created = await _run_cron(_FakeArqPool())
 
-    assert created == 0
-    assert await _guides_count(institution) == 0
-
-
-async def test_disabled_agent_blocks_the_cron(
-    client: AsyncClient, institution: Institution
-) -> None:
-    ctx = await _setup(client, institution, auto_generate=True)
-    await enable_topic(client, ctx["teacher_access"], ctx["group"]["id"], ctx["topic_ids"][0])
-
-    await client.put(
-        f"/ai/groups/{ctx['group']['id']}/agents/guide_generation",
-        json={"enabled": False},
-        headers=auth_headers(ctx["teacher_access"]),
-    )
-
-    created = await _run_cron(_FakeArqPool())
-
-    # El cron no puede saltarse el interruptor que el docente apagó.
     assert created == 0
     assert await _guides_count(institution) == 0
 

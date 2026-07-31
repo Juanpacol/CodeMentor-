@@ -1,20 +1,12 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from logica.ai.agents.models import AgentName, TutorMessageRole
+from logica.ai.agents.models import TutorMessageRole
 from logica.modules.exercises.models import ExerciseType
 from logica.modules.guides.schemas import GuideOut
-
-
-class AgentConfigOut(BaseModel):
-    agent_name: AgentName
-    enabled: bool
-
-
-class AgentToggleRequest(BaseModel):
-    enabled: bool
 
 
 class TutorHintRequest(BaseModel):
@@ -43,6 +35,21 @@ class ExerciseGenerateRequest(BaseModel):
     group_id: uuid.UUID
     topic_id: uuid.UUID
     exercise_type: ExerciseType
+
+
+class ExerciseVariantsRequest(BaseModel):
+    # Tope de 4: cada variante es una llamada al modelo, y esto corre en el
+    # request path (a diferencia del lote de guías) — 4 mantiene la espera
+    # del docente razonable.
+    count: int = Field(default=3, ge=1, le=4)
+
+
+class ExerciseVariantOut(BaseModel):
+    """Preview puro: no tiene `id` porque no se persiste hasta que el docente
+    la acepta (vía el `POST /exercises` que ya existe)."""
+
+    title: str
+    content: dict[str, Any]
 
 
 class GuideExercisesRequest(BaseModel):

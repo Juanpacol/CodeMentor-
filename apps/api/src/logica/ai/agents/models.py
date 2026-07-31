@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,9 +19,8 @@ class AgentName(enum.StrEnum):
     Ese invariante lo verifica `tests/unit/test_agent_registry.py`: agregar un
     miembro acá obliga a agregar su tier y su plantilla de prompt en el mismo
     commit. No es burocracia — `curriculum_planner` vivió en este enum sin
-    plantilla ni tier, así que aparecía en `GET /ai/groups/{id}/agents` como un
-    agente activo que el docente podía apagar y que, si algo lo hubiera invocado,
-    habría muerto con `TemplateNotFound` en runtime."""
+    plantilla ni tier, y si algo lo hubiera invocado habría muerto con
+    `TemplateNotFound` en runtime."""
 
     tutor = "progressive_hint"
     exercise_generator = "exercise_generation"
@@ -29,24 +28,6 @@ class AgentName(enum.StrEnum):
     learning_analytics = "summarize_group"
     code_integrity = "code_integrity"
     guide_writer = "guide_generation"
-
-
-class AgentConfig(UUIDPkMixin, TimestampMixin, Base):
-    """Per-group on/off switch for each agent (RF-30). Absence of a row for
-    a (group_id, agent_name) pair means "enabled" — the default — so a group
-    only needs a row once a teacher actually disables something, rather
-    than seeding 5 rows for every group at creation time."""
-
-    __tablename__ = "agent_configs"
-    __table_args__ = (UniqueConstraint("group_id", "agent_name", name="uq_agent_config_group"),)
-
-    group_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("groups.id"), nullable=False, index=True
-    )
-    agent_name: Mapped[AgentName] = mapped_column(
-        Enum(AgentName, name="agent_name"), nullable=False
-    )
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class TutorMessageRole(enum.StrEnum):
@@ -145,9 +126,7 @@ class CurriculumPlan(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
 
 
 class CurriculumPlanItem(UUIDPkMixin, TimestampMixin, Base):
-    """Un tema asignado (o no) a un periodo dentro de un `CurriculumPlan`.
-    `period_id = NULL` significa "no alcanza" — el scheduler simbólico
-    (curriculum_scheduler.py) lo deja así en vez de inventar una fecha."""
+    """Un tema dentro de un `CurriculumPlan`, en el orden propuesto."""
 
     __tablename__ = "curriculum_plan_items"
 
@@ -159,9 +138,6 @@ class CurriculumPlanItem(UUIDPkMixin, TimestampMixin, Base):
     )
     topic_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("topics.id"), nullable=False
-    )
-    period_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("academic_periods.id"), nullable=True
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     estimated_sessions: Mapped[int] = mapped_column(Integer, nullable=False)

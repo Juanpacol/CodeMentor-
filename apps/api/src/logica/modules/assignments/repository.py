@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logica.modules.assignments.models import Assignment
-from logica.modules.evaluations.models import PracticeSubmission
+from logica.modules.evaluations.models import AttemptStatus, EvaluationAttempt, PracticeSubmission
 from logica.modules.exercises.models import TopicExercise
 from logica.modules.groups.models import Group, GroupMembership
 
@@ -71,5 +71,16 @@ async def solved_exercise_ids(db: AsyncSession, student_id: uuid.UUID) -> set[uu
     stmt = select(PracticeSubmission.exercise_id).where(
         PracticeSubmission.student_id == student_id,
         PracticeSubmission.correct.is_(True),
+    )
+    return set((await db.execute(stmt)).scalars().all())
+
+
+async def submitted_evaluation_ids(db: AsyncSession, student_id: uuid.UUID) -> set[uuid.UUID]:
+    """Exámenes que el estudiante ya presentó (§ítem 21, "taller/examen/
+    ejercicios" como destinos de asignación). Igual patrón que
+    `solved_exercise_ids`: una sola consulta para todas sus asignaciones."""
+    stmt = select(EvaluationAttempt.evaluation_id).where(
+        EvaluationAttempt.student_id == student_id,
+        EvaluationAttempt.status == AttemptStatus.submitted,
     )
     return set((await db.execute(stmt)).scalars().all())

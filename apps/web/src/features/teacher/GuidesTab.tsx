@@ -52,6 +52,9 @@ export function GuidesTab({ groupId }: { groupId: string }) {
   const [generateDialog, setGenerateDialog] = useState(false)
   const [openGuideId, setOpenGuideId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Borrar es irreversible (a diferencia de publicar/archivar/cancelar): un
+  // segundo clic explícito evita que un clic apurado la elimine sin querer.
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
 
   const [folderName, setFolderName] = useState('')
   const [selectedFolderId, setSelectedFolderId] = useState('')
@@ -251,6 +254,22 @@ export function GuidesTab({ groupId }: { groupId: string }) {
       invalidateGuides()
     },
     onError: onError('No se pudo archivar la guía'),
+  })
+
+  const deleteGuide = useMutation({
+    mutationFn: (guideId: string) =>
+      unwrap(
+        apiClient.DELETE('/guides/{guide_id}', {
+          params: { path: { guide_id: guideId } },
+        }),
+      ),
+    onSuccess: () => {
+      pushToast('Guía eliminada', 'success')
+      setOpenGuideId(null)
+      setConfirmingDeleteId(null)
+      invalidateGuides()
+    },
+    onError: onError('No se pudo eliminar la guía'),
   })
 
   const activeFolder = folders?.find((f) => f.id === activeFolderId)
@@ -580,7 +599,10 @@ export function GuidesTab({ groupId }: { groupId: string }) {
 
       <Dialog
         open={Boolean(openGuide)}
-        onClose={() => setOpenGuideId(null)}
+        onClose={() => {
+          setOpenGuideId(null)
+          setConfirmingDeleteId(null)
+        }}
         title={openGuide?.title ?? 'Guía'}
       >
         {openGuide && (
@@ -648,6 +670,34 @@ export function GuidesTab({ groupId }: { groupId: string }) {
                 >
                   Archivar
                 </Button>
+              )}
+              {openGuide.status !== 'published' && openGuide.status !== 'archived' && (
+                <>
+                  {confirmingDeleteId === openGuide.id ? (
+                    <>
+                      <span className="self-center text-sm text-error">
+                        ¿Seguro? No se puede deshacer.
+                      </span>
+                      <Button
+                        variant="danger"
+                        disabled={deleteGuide.isPending}
+                        onClick={() => deleteGuide.mutate(openGuide.id)}
+                      >
+                        {deleteGuide.isPending ? 'Quitando…' : 'Sí, quitar'}
+                      </Button>
+                      <Button variant="secondary" onClick={() => setConfirmingDeleteId(null)}>
+                        Cancelar
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setConfirmingDeleteId(openGuide.id)}
+                    >
+                      Quitar
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </div>

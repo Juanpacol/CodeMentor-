@@ -72,3 +72,19 @@ class RubricRunDetailOut(BaseModel):
 
     run: RubricRunOut
     items: list[RubricItemOut]
+
+
+class ExtractedTopicItem(BaseModel):
+    topic_name: str = Field(min_length=2, max_length=200)
+    level: TopicLevel = TopicLevel.basico
+    order_index: int = 0
+
+
+class DocumentExtractionResult(BaseModel):
+    """Salida de `POST /rubric-runs/extract-topics`: un paso de *preview* puro
+    (no crea `RubricRun` ni `RubricItem`), pensado para prellenar el textarea de
+    temas que el docente ya conoce y sigue pudiendo editar antes de enviar."""
+
+    # >MAX_ITEMS_PER_RUN (15) a propósito: el recorte final lo hace el docente en
+    # el textarea, con el mismo aviso que ya existe para exceso de temas.
+    items: list[ExtractedTopicItem] = Field(default_factory=list, max_length=30)

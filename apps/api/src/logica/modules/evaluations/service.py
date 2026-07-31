@@ -5,8 +5,6 @@ from typing import Any, Literal
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logica.ai.agents.config_service import ensure_agent_enabled
-from logica.ai.agents.models import AgentName
 from logica.ai.skills.pedagogical_feedback import generate_pedagogical_feedback
 from logica.core.errors import (
     ConflictError,
@@ -125,6 +123,7 @@ async def create_evaluation(
     duration_minutes: int | None,
     is_ranked: bool,
     exercise_ids: list[uuid.UUID],
+    weight_percent: float | None = None,
 ) -> Evaluation:
     _ensure_teacher(teacher)
     await get_group_with_access(db, teacher, group_id)
@@ -142,6 +141,7 @@ async def create_evaluation(
         up_to_topic_id=up_to_topic_id if mode == EvaluationMode.fixed else None,
         duration_minutes=duration_minutes,
         is_ranked=is_ranked,
+        weight_percent=weight_percent,
     )
     db.add(evaluation)
     await db.flush()
@@ -419,7 +419,6 @@ async def generate_answer_feedback(
     _ensure_teacher(teacher)
     evaluation = await _get_evaluation_in_institution(db, teacher, evaluation_id)
     await get_group_with_access(db, teacher, evaluation.group_id)
-    await ensure_agent_enabled(db, evaluation.group_id, AgentName.grading_assistant)
 
     answer = await get_answer_by_id(db, answer_id)
     if answer is None:

@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from logica.modules.progress.models import BadgeCriteria
 
@@ -89,16 +89,3 @@ class LaggingStudentOut(BaseModel):
     reason: str
 
 
-class AcademicPeriodCreateRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    start_date: date
-    end_date: date
-
-
-class AcademicPeriodOut(BaseModel):
-    id: uuid.UUID
-    name: str
-    start_date: date
-    end_date: date
-
-    model_config = {"from_attributes": True}

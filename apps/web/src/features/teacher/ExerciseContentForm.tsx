@@ -1,9 +1,12 @@
+import CodeMirror from '@uiw/react-codemirror'
 import { useState } from 'react'
 
 import { Button } from '../../components/ui/Button'
 import { FieldError, Input, Textarea } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import type { ExerciseType } from '../../components/exercises/registry'
+import { getCodeMirrorExtensions } from '../../lib/codemirror/getExtensions'
+import { useTheme } from '../../lib/theme'
 
 interface Props {
   type: ExerciseType
@@ -47,6 +50,50 @@ function DynamicList({
       <Button type="button" variant="secondary" size="sm" onClick={() => onChange([...items, ''])}>
         + agregar
       </Button>
+    </div>
+  )
+}
+
+/** Editor de código para `fill_code`/`live_code`: mismo CodeMirror que ya usa
+ * el estudiante en `LiveCodeRenderer` (resaltado, números de línea, e
+ * indentación intacta al pegar) — antes era un `Textarea` plano, incómodo
+ * para pegar el código propio del docente cuando lo que generó la IA no
+ * sirve. El botón "Reemplazar" vacía el campo primero para que pegar no dejе
+ * el código de la IA mezclado con el pegado. */
+function CodeField({
+  value,
+  onChange,
+  language,
+  placeholder,
+  label,
+}: {
+  value: string
+  onChange: (next: string) => void
+  language?: string
+  placeholder?: string
+  label: string
+}) {
+  const theme = useTheme()
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <label className="block text-sm text-ink-secondary">{label}</label>
+        {value && (
+          <Button type="button" variant="ghost" size="sm" onClick={() => onChange('')}>
+            Reemplazar código
+          </Button>
+        )}
+      </div>
+      <div className="overflow-hidden rounded-card border border-hairline-strong">
+        <CodeMirror
+          value={value}
+          height="200px"
+          theme={theme}
+          placeholder={placeholder}
+          extensions={getCodeMirrorExtensions(language ?? '')}
+          onChange={onChange}
+        />
+      </div>
     </div>
   )
 }
@@ -130,17 +177,12 @@ export function ExerciseContentForm({ type, value, onChange }: Props) {
             value={String(value.statement ?? '')}
             onChange={(e) => set({ statement: e.target.value })}
           />
-          <div>
-            <label className="mb-1.5 block text-sm text-ink-secondary">
-              Código con espacios marcados como ___
-            </label>
-            <Textarea
-              placeholder={'___ saludar():\n    print("Hola")'}
-              value={String(value.code_template ?? '')}
-              onChange={(e) => set({ code_template: e.target.value })}
-              className="font-mono"
-            />
-          </div>
+          <CodeField
+            label="Código con espacios marcados como ___"
+            placeholder={'___ saludar():\n    print("Hola")'}
+            value={String(value.code_template ?? '')}
+            onChange={(next) => set({ code_template: next })}
+          />
           <label className="block text-sm text-ink-secondary">
             Respuesta correcta de cada espacio, en orden
           </label>
@@ -211,40 +253,6 @@ export function ExerciseContentForm({ type, value, onChange }: Props) {
         </div>
       )
 
-    case 'order_lines': {
-      const lines = Array.isArray(value.lines) ? (value.lines as string[]) : ['']
-      return (
-        <div className="flex flex-col gap-3">
-          <Textarea
-            placeholder="Enunciado"
-            value={String(value.statement ?? '')}
-            onChange={(e) => set({ statement: e.target.value })}
-          />
-          <label className="block text-sm text-ink-secondary">
-            Líneas de código (en el orden en que se mostrarán al estudiante)
-          </label>
-          <DynamicList items={lines} onChange={(next) => set({ lines: next })} placeholder="Línea" />
-          <div>
-            <label className="mb-1.5 block text-sm text-ink-secondary">
-              Orden correcto (índices separados por coma, ej. 1,0,2)
-            </label>
-            <Input
-              placeholder="1,0,2"
-              defaultValue={(value.correct_order as number[] | undefined)?.join(',') ?? ''}
-              onChange={(e) => {
-                const parsed = e.target.value
-                  .split(',')
-                  .map((s) => s.trim())
-                  .filter(Boolean)
-                  .map(Number)
-                set({ correct_order: parsed })
-              }}
-            />
-          </div>
-        </div>
-      )
-    }
-
     case 'argued_response':
       return (
         <Textarea
@@ -274,11 +282,12 @@ export function ExerciseContentForm({ type, value, onChange }: Props) {
               onChange={(e) => set({ version: e.target.value })}
             />
           </div>
-          <Textarea
+          <CodeField
+            label="Código inicial para el estudiante"
             placeholder="Código inicial para el estudiante"
+            language={String(value.language ?? 'python')}
             value={String(value.starter_code ?? '')}
-            onChange={(e) => set({ starter_code: e.target.value })}
-            className="font-mono"
+            onChange={(next) => set({ starter_code: next })}
           />
           <div>
             <label className="mb-1.5 block text-sm text-ink-secondary">

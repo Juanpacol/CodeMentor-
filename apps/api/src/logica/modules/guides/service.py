@@ -298,3 +298,21 @@ async def archive_guide(db: AsyncSession, user: User, guide_id: uuid.UUID) -> Gu
     await db.flush()
     await db.refresh(guide)
     return guide
+
+
+async def delete_guide(db: AsyncSession, user: User, guide_id: uuid.UUID) -> None:
+    """Borrado en duro, solo para guías que ningún estudiante pudo haber visto
+    (`draft`/`failed`/`cancelled`; `generating` también se descarta, no tiene
+    contenido todavía). Una guía `published` o `archived` se archiva, nunca se
+    borra — mismo criterio que `§9.2` para cualquier contenido que ya circuló:
+    desaparecer en silencio sería peor que dejarla marcada como archivada."""
+    guide = await get_guide_for_teacher(db, user, guide_id)
+    if guide.status in (GuideStatus.published, GuideStatus.archived):
+        raise ConflictError(
+            "No se puede borrar una guía publicada o archivada",
+            hint="Si ya no la quieres visible, dejarla archivada tiene el mismo efecto.",
+        )
+
+    await db.delete(guide)
+    await db.flush()
+    logger.info("guide_deleted", guide_id=str(guide_id))

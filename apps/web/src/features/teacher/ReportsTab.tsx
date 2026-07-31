@@ -29,20 +29,14 @@ async function downloadReport(reportJobId: string, format: string, groupId: stri
 
 export function ReportsTab({ groupId }: { groupId: string }) {
   const [format, setFormat] = useState<'xlsx' | 'pdf'>('xlsx')
-  const [periodId, setPeriodId] = useState('')
   const [jobId, setJobId] = useState<string | null>(null)
-
-  const { data: periods } = useQuery({
-    queryKey: qk.academicPeriods,
-    queryFn: () => unwrap(apiClient.GET('/academic-periods')),
-  })
 
   const request = useMutation({
     mutationFn: () =>
       unwrap(
         apiClient.POST('/groups/{group_id}/reports', {
           params: { path: { group_id: groupId } },
-          body: { format, period_id: periodId || undefined },
+          body: { format },
         }),
       ),
     onSuccess: (job) => setJobId(job.id),
@@ -69,21 +63,6 @@ export function ReportsTab({ groupId }: { groupId: string }) {
             <option value="pdf">PDF</option>
           </Select>
         </div>
-        {periods && periods.length > 0 && (
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink-secondary">
-              Periodo académico (opcional)
-            </label>
-            <Select value={periodId} onChange={(e) => setPeriodId(e.target.value)}>
-              <option value="">Todo el historial</option>
-              {periods.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        )}
         <Button disabled={request.isPending} onClick={() => request.mutate()}>
           {request.isPending ? 'Solicitando...' : 'Generar reporte'}
         </Button>

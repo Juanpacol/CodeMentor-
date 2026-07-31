@@ -14,8 +14,6 @@ from redis.asyncio import Redis
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logica.ai.agents.config_service import ensure_agent_enabled
-from logica.ai.agents.models import AgentName
 from logica.ai.harness.structured import complete_structured
 from logica.ai.skills.retrieve_context import retrieve_context
 from logica.core.errors import (
@@ -24,6 +22,7 @@ from logica.core.errors import (
     NotFoundError,
     PermissionDeniedError,
     ServiceUnavailableError,
+    ValidationDomainError,
 )
 from logica.modules.content.models import Topic
 from logica.modules.content.repository import get_language, get_topic
@@ -34,7 +33,12 @@ from logica.modules.exercises.models import (
     ExerciseType,
     TopicExercise,
 )
-from logica.modules.exercises.repository import get_topic_exercise_link, list_exercises
+from logica.modules.exercises.repository import (
+    get_exercise,
+    get_topic_exercise_link,
+    list_exercises,
+    list_topic_ids_for_exercise,
+)
 from logica.modules.groups.service import get_group_with_access
 from logica.modules.guides.models import Guide, GuidesFolder
 from logica.modules.users.models import Role, User
@@ -64,10 +68,6 @@ _SCHEMA_HINTS: dict[ExerciseType, str] = {
         '{"title": "...", "content": {"statement": "...", "code": "...", '
         '"expected_trace": [{"variable": "valor"}]}}'
     ),
-    ExerciseType.order_lines: (
-        '{"title": "...", "content": {"statement": "...", "lines": ["...", "..."], '
-        '"correct_order": [0, 1]}}'
-    ),
     ExerciseType.argued_response: '{"title": "...", "content": {"prompt": "..."}}',
     ExerciseType.live_code: (
         '{"title": "...", "content": {"language": "python", "version": "3.10.0", '
@@ -90,17 +90,23 @@ async def _complete_exercise(
     language_name: str,
     exercise_type: ExerciseType,
     guide_excerpt: str = "",
+    extra_similar: Sequence[str] = (),
 ) -> ExerciseGenerationOutput:
     """Solo la llamada al modelo. Está separada de la persistencia a propósito:
     el lote de la Fase 17 necesita envolver los INSERTs en un SAVEPOINT, y meter
     también esta parte adentro revertiría la fila de `ai_interactions` que
     `complete_structured` ya escribió antes de fallar — justo el registro que
-    explica por qué falló."""
+    explica por qué falló.
+
+    `extra_similar` es para el caso de variantes (§ítem 21): además de lo que
+    ya hay en el banco, cada variante nueva del lote debe conocer las que ya
+    se generaron en esa misma tanda, o el modelo tiende a repetir la primera."""
     reference_context = await retrieve_context(
         db, teacher.institution_id, f"{topic.name} {exercise_type.value}", topic_id=topic.id
     )
     existing = await list_exercises(db, teacher.institution_id, topic_id=topic.id)
-    similar_exercises = "\n".join(f"- {e.title}" for e in existing[:5])
+    similar_titles = [e.title for e in existing[:5]] + list(extra_similar)
+    similar_exercises = "\n".join(f"- {t}" for t in similar_titles)
 
     return await complete_structured(
         db,
@@ -175,7 +181,6 @@ async def generate_exercise_draft(
         raise PermissionDeniedError("Solo un docente o administrador puede generar ejercicios")
 
     await get_group_with_access(db, teacher, group_id)
-    await ensure_agent_enabled(db, group_id, AgentName.exercise_generator)
 
     topic = await get_topic(db, topic_id)
     if topic is None or topic.institution_id != teacher.institution_id:
@@ -222,7 +227,6 @@ async def generate_exercises_for_guide(
     folder = await db.get(GuidesFolder, guide.folder_id)
     if folder is None:
         raise NotFoundError("Carpeta de guías no encontrada")
-    await ensure_agent_enabled(db, folder.group_id, AgentName.exercise_generator)
 
     topic = await get_topic(db, guide.topic_id)
     if topic is None or topic.institution_id != teacher.institution_id:
@@ -288,3 +292,80 @@ async def generate_exercises_for_guide(
         created=len(created),
     )
     return created
+
+
+async def generate_exercise_variants(
+    db: AsyncSession,
+    redis: Redis,
+    teacher: User,
+    *,
+    exercise_id: uuid.UUID,
+    count: int,
+) -> list[ExerciseGenerationOutput]:
+    """Ítem 21: N variantes de un ejercicio existente (mismo tipo/tema),
+    devueltas como *preview* — nada se persiste acá. El docente las revisa,
+    edita si quiere, y solo las que acepta se crean como ejercicios reales
+    (vía el `POST /exercises` que ya existe) antes de adjuntarlas a la
+    evaluación que está armando.
+
+    Aislamiento de fallos por variante, mismo criterio que
+    `generate_exercises_for_guide`: si una del lote falla (casi siempre
+    `StructuredOutputError`), las demás igual se devuelven — presupuesto
+    agotado o proveedores caídos sí se propagan, porque repetir el resto
+    solo repetiría el mismo fallo."""
+    if teacher.role not in (Role.teacher, Role.admin):
+        raise PermissionDeniedError("Solo un docente o administrador puede generar variantes")
+
+    exercise = await get_exercise(db, exercise_id)
+    if exercise is None or exercise.institution_id != teacher.institution_id:
+        raise NotFoundError("Ejercicio no encontrado")
+
+    topic_ids = await list_topic_ids_for_exercise(db, exercise_id)
+    if not topic_ids:
+        raise ValidationDomainError(
+            "Este ejercicio no está asociado a ningún tema",
+            hint="Solo se pueden generar variantes de ejercicios que ya están en un tema.",
+        )
+    topic = await get_topic(db, topic_ids[0])
+    if topic is None:
+        raise NotFoundError("Tema no encontrado")
+    language = await get_language(db, exercise.language_id)
+    if language is None:
+        raise NotFoundError("Lenguaje no encontrado")
+
+    variants: list[ExerciseGenerationOutput] = []
+    similar_so_far = [exercise.title]
+    for _ in range(count):
+        try:
+            output = await _complete_exercise(
+                db,
+                redis,
+                teacher,
+                topic=topic,
+                language_name=language.name,
+                exercise_type=exercise.type,
+                extra_similar=similar_so_far,
+            )
+        except (ConflictError, ServiceUnavailableError):
+            logger.warning(
+                "exercise_variant_batch_aborted",
+                exercise_id=str(exercise_id),
+                created=len(variants),
+            )
+            raise
+        except LogicaError as exc:
+            logger.warning(
+                "exercise_variant_batch_item_failed", exercise_id=str(exercise_id), error=str(exc)
+            )
+            continue
+
+        variants.append(output)
+        similar_so_far.append(output.title)
+
+    logger.info(
+        "exercise_variants_generated",
+        exercise_id=str(exercise_id),
+        requested=count,
+        generated=len(variants),
+    )
+    return variants

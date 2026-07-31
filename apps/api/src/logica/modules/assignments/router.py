@@ -35,6 +35,8 @@ async def create_assignment(
         title=payload.title,
         topic_id=payload.topic_id,
         exercise_id=payload.exercise_id,
+        evaluation_id=payload.evaluation_id,
+        guide_id=payload.guide_id,
         due_at=payload.due_at,
     )
     await db.commit()

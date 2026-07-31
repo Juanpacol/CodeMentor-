@@ -27,7 +27,9 @@ async def _submit_true_false(client: AsyncClient, access: str, evaluation_id: st
 
 
 async def _setup_group_with_two_evaluations(
-    client: AsyncClient, teacher_access: str
+    client: AsyncClient,
+    teacher_access: str,
+    weight_percents: tuple[float | None, float | None] = (None, None),
 ) -> tuple[str, str, str]:
     """Returns (group_id, evaluation_id_1, evaluation_id_2), each with one
     enabled true_false exercise worth 1 point."""
@@ -41,17 +43,18 @@ async def _setup_group_with_two_evaluations(
     await enable_topic(client, teacher_access, group["id"], topic_id)
 
     evaluation_ids = []
-    for title in ("Quiz 1", "Quiz 2"):
+    for title, weight_percent in zip(("Quiz 1", "Quiz 2"), weight_percents, strict=True):
+        payload = {
+            "group_id": group["id"],
+            "title": title,
+            "mode": "cumulative",
+            "is_ranked": False,
+            "exercise_ids": [exercise["id"]],
+        }
+        if weight_percent is not None:
+            payload["weight_percent"] = weight_percent
         created = await client.post(
-            "/evaluations",
-            json={
-                "group_id": group["id"],
-                "title": title,
-                "mode": "cumulative",
-                "is_ranked": False,
-                "exercise_ids": [exercise["id"]],
-            },
-            headers=auth_headers(teacher_access),
+            "/evaluations", json=payload, headers=auth_headers(teacher_access)
         )
         assert created.status_code == 201, created.text
         evaluation_ids.append(created.json()["id"])
@@ -96,6 +99,38 @@ async def test_gradebook_returns_matrix(client: AsyncClient, institution: Instit
     assert by_name["Estudiante B"]["evaluations_submitted"] == 1
     assert by_name["Estudiante B"]["avg_evaluation_score"] == 1.0
     assert [s["evaluation_id"] for s in by_name["Estudiante B"]["scores"]] == [eval1_id]
+
+
+async def test_gradebook_weighted_average_combines_evaluations_by_percent(
+    client: AsyncClient, institution: Institution
+) -> None:
+    domain = institution.email_domains[0]
+    teacher_access, _ = await register_and_login(client, email=f"doc@{domain}", role="teacher")
+    student_access, _ = await register_and_login(
+        client, email=f"est@{domain}", full_name="Estudiante A", role="student"
+    )
+
+    group_id, eval1_id, eval2_id = await _setup_group_with_two_evaluations(
+        client, teacher_access, weight_percents=(30.0, 70.0)
+    )
+    group = (await client.get("/groups/mine", headers=auth_headers(teacher_access))).json()[0]
+    await join_group(client, student_access, group["invite_code"])
+
+    # El único ejercicio de cada evaluación vale 1 punto y la respuesta es
+    # correcta, así que total_score == max_score == 1.0 en ambas: la nota
+    # ponderada debe ser exactamente 30 + 70 = 100.
+    await _submit_true_false(client, student_access, eval1_id)
+    await _submit_true_false(client, student_access, eval2_id)
+
+    resp = await client.get(f"/groups/{group_id}/gradebook", headers=auth_headers(teacher_access))
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    weights = {e["id"]: e["weight_percent"] for e in body["evaluations"]}
+    assert weights == {eval1_id: 30.0, eval2_id: 70.0}
+
+    student = next(s for s in body["students"] if s["full_name"] == "Estudiante A")
+    assert student["weighted_average"] == 100.0
 
 
 async def test_gradebook_requires_teacher(client: AsyncClient, institution: Institution) -> None:

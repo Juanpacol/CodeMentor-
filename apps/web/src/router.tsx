@@ -5,7 +5,6 @@ import { suspended } from './components/layout/PageFallback'
 import { RequireAuth, RequireRole } from './components/layout/RequireAuth'
 import { RouteErrorBoundary } from './components/layout/RouteErrorBoundary'
 import {
-  AcademicPeriodsPage,
   ActivityLogPage,
   ApprovalsInboxPage,
   EvaluationBuilderPage,
@@ -16,6 +15,7 @@ import {
   LandingPage,
   LoginPage,
   NotFoundPage,
+  PendingAssignmentsPage,
   PracticePage,
   ProgressPage,
   RegisterPage,
@@ -82,7 +82,10 @@ export const router = createBrowserRouter([
                   },
                   { path: '/app/docente/bandeja', element: suspended(<ApprovalsInboxPage />) },
                   { path: '/app/docente/actividad', element: suspended(<ActivityLogPage />) },
-                  { path: '/app/admin/periodos', element: suspended(<AcademicPeriodsPage />) },
+                  {
+                    path: '/app/docente/pendientes',
+                    element: suspended(<PendingAssignmentsPage />),
+                  },
                 ],
               },
             ],

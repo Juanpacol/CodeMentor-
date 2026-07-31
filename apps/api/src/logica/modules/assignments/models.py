@@ -23,20 +23,22 @@ from logica.db import Base
 class Assignment(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
     """Lo que un docente le pide a un grupo, con fecha de entrega.
 
-    Apunta a un tema **o** a un ejercicio, nunca a ambos: asignar "el tema de
-    ciclos" y "el ejercicio 47" son las dos granularidades que el docente usa, y
-    un `CheckConstraint` las mantiene excluyentes en vez de dejar que una fila
-    con ambas signifique lo que cada consulta quiera.
+    Apunta a exactamente uno de cuatro destinos — tema, ejercicio, evaluación
+    (examen) o guía (taller) — nunca a más de uno: son las granularidades que
+    el docente usa para pedir algo, y un `CheckConstraint` las mantiene
+    excluyentes en vez de dejar que una fila con varias signifique lo que cada
+    consulta quiera.
 
-    Sin `ON DELETE CASCADE` hacia temas o ejercicios: borrar un ejercicio no
+    Sin `ON DELETE CASCADE` hacia ninguno de los cuatro: borrar el objetivo no
     debería borrar en silencio el registro de que fue asignado.
     """
 
     __tablename__ = "assignments"
     __table_args__ = (
         CheckConstraint(
-            "(topic_id IS NULL) <> (exercise_id IS NULL)",
-            name="ck_assignment_topic_xor_exercise",
+            "(topic_id IS NOT NULL)::int + (exercise_id IS NOT NULL)::int + "
+            "(evaluation_id IS NOT NULL)::int + (guide_id IS NOT NULL)::int = 1",
+            name="ck_assignment_exactly_one_target",
         ),
     )
 
@@ -52,6 +54,17 @@ class Assignment(UUIDPkMixin, TenantMixin, TimestampMixin, Base):
     )
     exercise_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("exercises.id"), nullable=True
+    )
+    # Examen: la asignación apunta a la evaluación en sí, no a sus ejercicios
+    # sueltos — "cumplida" se resuelve contra si ya la presentó.
+    evaluation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evaluations.id"), nullable=True
+    )
+    # Taller: una guía de clase. No hay señal de "la leyó" en la plataforma
+    # todavía, así que "cumplida" queda siempre en falso para este destino —
+    # ver `service.py::list_my_assignments`.
+    guide_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("guides.id"), nullable=True
     )
     # Nullable: "para cuando puedas" es una asignación válida, y forzar una
     # fecha inventada haría que el dashboard mostrara vencimientos falsos.
