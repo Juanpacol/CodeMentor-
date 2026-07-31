@@ -24,6 +24,10 @@ jobs:
     steps:
       - name: Ping /health
         run: |
+          if [ -z "${{ vars.API_URL }}" ]; then
+            echo "::error::Falta la variable de repo API_URL (Settings > Secrets and variables > Actions > Variables)."
+            exit 1
+          fi
           curl --fail --silent --show-error "${{ vars.API_URL }}/health"
 
       # Ítem 14 comparte este workflow a propósito: reutiliza el campo

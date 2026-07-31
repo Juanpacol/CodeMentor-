@@ -199,9 +199,7 @@ async def generate_group_report(db: AsyncSession, report_job_id: uuid.UUID) -> N
         # que ya ve el docente en pantalla (AnalyticsTab), ahora también en el
         # archivo — sin inventar una métrica nueva.
         lagging_reasons = {
-            row.student_id: (
-                await lagging_reason_for_student(db, job.group_id, row.student_id)
-            )[0]
+            row.student_id: (await lagging_reason_for_student(db, job.group_id, row.student_id))[0]
             for row in rows
         }
 

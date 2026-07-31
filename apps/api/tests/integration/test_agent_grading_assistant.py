@@ -173,7 +173,10 @@ async def test_generate_feedback_reuses_pedagogical_feedback_skill(
 
     async def fake(task: str, messages: list[dict[str, str]]) -> CompletionResult:
         return CompletionResult(
-            text="Buen intento — explica el porqué del ciclo, pero falta mencionar la condición de salida.",
+            text=(
+                "Buen intento — explica el porqué del ciclo, "
+                "pero falta mencionar la condición de salida."
+            ),
             model="groq/fake",
             prompt_tokens=1,
             completion_tokens=1,

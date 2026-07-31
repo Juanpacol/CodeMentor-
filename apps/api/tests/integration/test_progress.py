@@ -234,16 +234,12 @@ async def test_lagging_students_filtered_by_topic(
     await enable_topic(client, teacher_access, group["id"], topic_strong)
 
     for i in range(4):
-        exercise = await create_exercise(
-            client, teacher_access, language_id, title=f"Débil {i}"
-        )
+        exercise = await create_exercise(client, teacher_access, language_id, title=f"Débil {i}")
         await attach_exercise(client, teacher_access, exercise["id"], topic_weak)
         await _submit_practice(client, student_access, exercise["id"], group["id"], value=False)
 
     for i in range(4):
-        exercise = await create_exercise(
-            client, teacher_access, language_id, title=f"Fuerte {i}"
-        )
+        exercise = await create_exercise(client, teacher_access, language_id, title=f"Fuerte {i}")
         await attach_exercise(client, teacher_access, exercise["id"], topic_strong)
         await _submit_practice(client, student_access, exercise["id"], group["id"], value=True)
 
