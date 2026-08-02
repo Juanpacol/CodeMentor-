@@ -21,7 +21,7 @@
     "@uiw/react-codemirror": "^4.25.11",
     "dompurify": "^3.4.12",
     "marked": "^18.0.7",
-    "motion": "^12.42.2",
+    "motion": "^12.43.0",
     "openapi-fetch": "^0.17.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
